@@ -1,4 +1,19 @@
 # ◈ packages.graphics.list — graphics / display stack
+#
+# ASSUMPTION (flag if wrong): Wayland-minimal, not Xorg. Rationale — AthanorOS
+# is already non-systemd/musl/llvm and minimalism-first, and this stack only
+# needs to run Calamares fullscreen on the live ISO, not a general desktop.
+# `cage` is a single-application kiosk compositor built exactly for that:
+# launch one Wayland client fullscreen, nothing else running.
+#
+# `seatd` replaces systemd-logind/elogind for seat and session management
+# (VT switching, device access) without pulling in either systemd or the
+# elogind compatibility shim — matches the existing OpenRC-only design.
+#
+# If you'd rather target Xorg instead (more battle-tested with older
+# Calamares/KPMcore releases, heavier stack): swap this file's xorg-server +
+# xf86-input-libinput + a minimal WM in for the wayland/cage/seatd entries
+# below, and drop qtwayland from packages.calamares.list.
 
 media-libs/mesa                   use:llvm,wayland,vulkan,-X
 x11-libs/libdrm
@@ -8,7 +23,7 @@ media-libs/vulkan-loader
 dev-libs/wayland
 dev-libs/wayland-protocols
 gui-libs/wlroots
-gui-wm/cage
+gui-apps/cage
 sys-auth/seatd
 sys-libs/libseat
 media-libs/fontconfig

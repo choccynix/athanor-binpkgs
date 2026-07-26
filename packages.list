@@ -1,11 +1,27 @@
 # ◈ packages.list — core set
+#
+# One category/atom per line. USE flags in brackets are optional and are
+# passed straight to emerge as a per-atom USE override for the build only —
+# they are not written into the live package.use of the build container.
+#
+# Lines starting with # are ignored. Blank lines are ignored.
+#
+# Format:
+#   category/package[-version]  [use:flag1,-flag2,flag3]
+#
+# This file is the CORE set — small, fast-building tools. Graphics stack
+# lives in packages.graphics.list, the Calamares installer stack in
+# packages.calamares.list. All three are built in parallel by
+# build-packages.yml's matrix, each with its own 6-hour job ceiling.
+#
+# Examples (replace with your real curated set):
 
 sys-apps/portage
 sys-kernel/dracut
 sys-fs/lvm2
 net-misc/openssh
 app-shells/bash
-app-editors/neovim
+app-editors/neovim                use:lua,-python
 dev-vcs/git
 sys-process/htop
 net-misc/curl

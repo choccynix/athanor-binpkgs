@@ -75,6 +75,34 @@ jobs:
           python3 src/scripts/sync-ccache.py pull "${{ matrix.group }}" "$CCACHE_DIR"
           echo 'FEATURES="${FEATURES} ccache"' >> /etc/portage/make.conf
 
+      - name: Best-effort testing-keyword acceptance (calamares group only)
+        if: matrix.group == 'calamares'
+        run: |
+          # gentoo/musl/llvm is an experimental profile — several of these
+          # atoms may only exist keyworded ~amd64 (testing), not stable amd64.
+          # Scoped to this group's atoms only, not a blanket ACCEPT_KEYWORDS
+          # bump, since that risks destabilizing unrelated packages.
+          mkdir -p /etc/portage/package.accept_keywords
+          {
+            echo "dev-qt/qtcore ~amd64"
+            echo "dev-qt/qtgui ~amd64"
+            echo "dev-qt/qtwidgets ~amd64"
+            echo "dev-qt/qtnetwork ~amd64"
+            echo "dev-qt/qtsvg ~amd64"
+            echo "dev-qt/qtdeclarative ~amd64"
+            echo "dev-qt/qtquickcontrols2 ~amd64"
+            echo "dev-qt/qtwayland ~amd64"
+            echo "dev-qt/qttranslations ~amd64"
+            echo "dev-qt/qtdbus ~amd64"
+            echo "kde-frameworks/* ~amd64"
+            echo "sys-libs/kpmcore ~amd64"
+            echo "app-admin/calamares ~amd64"
+          } > /etc/portage/package.accept_keywords/athanor-ci
+
+      - name: Diagnose unresolvable atoms (informational, does not fail the job)
+        working-directory: src
+        run: python3 scripts/diagnose-masks.py "${{ matrix.list }}" || true
+
       - name: Build packages
         working-directory: src
         run: |
