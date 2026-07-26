@@ -14,9 +14,10 @@
 # rather than assuming, since I haven't verified current package.mask state
 # for your exact profile.
 #
-# qtwayland is included on the assumption the graphics stack is Wayland+cage
-# (see packages.graphics.list) — Calamares needs it to run as a native
-# Wayland client rather than falling back to XWayland.
+# CORRECTED from an earlier revision: Calamares' REQUIRED_USE needs exactly
+# one PYTHON_SINGLE_TARGET flag active, but this profile defaults to two
+# (python3_13 and python3_14) both enabled — the atom's USE override now
+# explicitly disables the other two, not just enables the one we want.
 
 dev-qt/qtcore
 dev-qt/qtgui
@@ -54,4 +55,4 @@ sys-auth/polkit
 dev-cpp/yaml-cpp
 dev-libs/boost
 
-app-admin/calamares               use:-qml,qt5,python_single_target_python3_13
+app-admin/calamares               use:-qml,qt5,python_single_target_python3_13,-python_single_target_python3_14,-python_single_target_python3_12

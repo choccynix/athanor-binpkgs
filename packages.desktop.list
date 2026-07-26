@@ -20,12 +20,13 @@
 #     handle this correctly today, but worth confirming with the actual
 #     firefox ebuild revision in your synced tree).
 #
-# sway itself is a full tiling Wayland compositor (as opposed to cage's
-# single-app kiosk mode in packages.graphics.list) — appropriate now that
-# the goal is a genuinely usable live desktop, not just launching Calamares.
-# foot is included as a minimal terminal, since sway needs at least one to
-# be useful standalone.
+# sway itself is a full tiling Wayland compositor (gui-wm/sway — Wayland
+# compositors live under gui-wm in Gentoo, not gui-apps; corrected from an
+# earlier revision) — as opposed to cage's single-app kiosk mode previously
+# in packages.graphics.list. foot is included as a minimal terminal
+# (gui-apps/foot — also corrected, it's not under x11-terms), since sway
+# needs at least one to be useful standalone.
 
-gui-apps/sway
-x11-terms/foot
+gui-wm/sway
+gui-apps/foot
 www-client/firefox            use:-tests,-debug
