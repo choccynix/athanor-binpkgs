@@ -25,9 +25,13 @@ on:
     branches: [main]
     paths:
       - "packages*.list"
+      - "scripts/**"
+      - ".github/workflows/build-packages.yml"
   pull_request:
     paths:
       - "packages*.list"
+      - "scripts/**"
+      - ".github/workflows/build-packages.yml"
   schedule:
     - cron: "0 3 * * 0"  # Sunday 03:00 UTC, ahead of the ISO's midnight build
   workflow_dispatch: {}
