@@ -1,0 +1,166 @@
+# ◈ build-packages.yml
+#
+# Builds three package groups in parallel — core, graphics, calamares — each
+# in its own gentoo/stage3:musl-llvm container job. This split exists
+# because GitHub-hosted runners hard-cap every job at 6 hours regardless of
+# plan, and a serial Qt+KDE-Frameworks+Mesa+Calamares build could realistically
+# exceed that. Each group also gets its own ccache, persisted as a release
+# asset between runs, so the Sunday rebuild only recompiles what changed.
+#
+# A final non-container job merges each group's Packages-index fragment,
+# signs the result, and publishes to gh-pages. That job runs on plain
+# ubuntu-latest (no musl container), so actions/checkout is fine there —
+# the Node/musl incompatibility only applies to steps executing inside the
+# stage3:musl-llvm container.
+
+name: Build binary packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages*.list"
+  pull_request:
+    paths:
+      - "packages*.list"
+  schedule:
+    - cron: "0 3 * * 0"  # Sunday 03:00 UTC, ahead of the ISO's midnight build
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # hard ceiling on GitHub-hosted runners — cannot go higher
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: core
+            list: packages.list
+          - group: graphics
+            list: packages.graphics.list
+          - group: calamares
+            list: packages.calamares.list
+    container:
+      image: gentoo/stage3:musl-llvm
+      options: --privileged
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      CCACHE_DIR: /var/cache/ccache
+    steps:
+      - name: Clone repo (direct git, not actions/checkout)
+        run: |
+          git clone --depth 1 \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            src
+          cd src && git checkout "${{ github.sha }}"
+
+      - name: Sync portage tree
+        run: emerge-webrsync
+
+      # OPEN ITEM (see packages.calamares.list header): if calamares/kpmcore
+      # need an overlay not enabled by default in this container, add that
+      # step here, gated on matrix.group == 'calamares'.
+
+      - name: Restore ccache
+        run: |
+          emerge --oneshot --quiet dev-util/ccache || true
+          python3 src/scripts/sync-ccache.py pull "${{ matrix.group }}" "$CCACHE_DIR"
+          echo 'FEATURES="${FEATURES} ccache"' >> /etc/portage/make.conf
+
+      - name: Build packages
+        working-directory: src
+        run: |
+          mkdir -p /var/cache/binpkgs
+          python3 scripts/build-binpkg.py "${{ matrix.list }}" /var/cache/binpkgs
+
+      - name: Save ccache
+        if: always()
+        run: python3 src/scripts/sync-ccache.py push "${{ matrix.group }}" "$CCACHE_DIR"
+
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "tag=binpkgs-artifacts-pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=binpkgs-rolling-$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload packages to release
+        working-directory: src
+        run: |
+          python3 scripts/upload-release.py \
+            /var/cache/binpkgs \
+            "${{ steps.tag.outputs.tag }}" \
+            /var/cache/binpkgs/upload-map.json
+
+      - name: Rewrite this group's Packages fragment with release URIs
+        working-directory: src
+        run: |
+          python3 scripts/generate-packages-index.py \
+            /var/cache/binpkgs/Packages \
+            /var/cache/binpkgs/upload-map.json \
+            /var/cache/binpkgs/Packages.final
+
+      - name: Publish fragment for the merge job to pick up
+        working-directory: src
+        run: |
+          python3 scripts/upload-single-asset.py \
+            /var/cache/binpkgs/Packages.final \
+            "${{ steps.tag.outputs.tag }}" \
+            "Packages.${{ matrix.group }}"
+
+  merge-and-publish:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine release tag
+        id: tag
+        run: echo "tag=binpkgs-rolling-$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Download each group's Packages fragment
+        run: |
+          mkdir -p fragments
+          for group in core graphics calamares; do
+            gh release download "${{ steps.tag.outputs.tag }}" \
+              --pattern "Packages.$group" --dir fragments --clobber || \
+              echo "[warn] fragment missing for $group"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge fragments
+        run: |
+          python3 scripts/merge-packages-index.py \
+            Packages.final \
+            fragments/Packages.core fragments/Packages.graphics fragments/Packages.calamares
+
+      - name: Sign merged index
+        run: python3 scripts/sign-packages.py Packages.final Packages.sig
+
+      - name: Publish to gh-pages
+        run: |
+          git config --global user.name "athanor-ci"
+          git config --global user.email "ci@athanoros.invalid"
+          git clone --depth 1 --branch gh-pages \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            gh-pages || {
+              mkdir gh-pages && cd gh-pages && git init && \
+              git checkout -b gh-pages && cd ..
+            }
+          cp Packages.final gh-pages/Packages
+          cp Packages.sig gh-pages/Packages.sig
+          cd gh-pages
+          git add Packages Packages.sig
+          git commit -m "Update Packages index (${{ steps.tag.outputs.tag }})" || echo "nothing to commit"
+          git push origin gh-pages

@@ -1,0 +1,22 @@
+# ◈ Append this block to /etc/portage/make.conf to consume prebuilt
+# AthanorOS packages instead of compiling everything from source.
+#
+# Replace ORG and REPO if you're pointing at a fork or a different index.
+
+FEATURES="${FEATURES} getbinpkg"
+
+# Points at the gh-pages branch of athanor-binpkgs, which serves a live
+# Packages index. Individual package blobs are fetched from wherever the
+# index's per-entry URI points (GitHub Release assets) — this URL only
+# needs to serve the index itself.
+PORTAGE_BINHOST="https://ORG.github.io/REPO"
+
+# Prefer binary packages when a matching build exists, fall back to source
+# otherwise. Drop "y" -> "n" if you want binpkgs to be opt-in per package
+# instead (then use --getbinpkg explicitly on the emerge command line).
+EMERGE_DEFAULT_OPTS="${EMERGE_DEFAULT_OPTS} --getbinpkg=y --binpkg-respect-use=y"
+
+# Optional but recommended: verify the GPG signature on the Packages index
+# before trusting anything in it.
+BINPKG_GPG_VERIFY_KEY="/etc/portage/gpg/athanor-binpkgs.pub.asc"
+FEATURES="${FEATURES} binpkg-signing binpkg-request-signature"
