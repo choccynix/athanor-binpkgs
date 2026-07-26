@@ -103,16 +103,6 @@ jobs:
         working-directory: src
         run: python3 scripts/diagnose-masks.py "${{ matrix.list }}" || true
 
-      - name: Build packages
-        working-directory: src
-        run: |
-          mkdir -p /var/cache/binpkgs
-          python3 scripts/build-binpkg.py "${{ matrix.list }}" /var/cache/binpkgs
-
-      - name: Save ccache
-        if: always()
-        run: python3 src/scripts/sync-ccache.py push "${{ matrix.group }}" "$CCACHE_DIR"
-
       - name: Determine release tag
         id: tag
         run: |
@@ -121,6 +111,27 @@ jobs:
           else
             echo "tag=binpkgs-rolling-$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Build packages
+        working-directory: src
+        run: |
+          mkdir -p /var/cache/binpkgs
+          python3 scripts/build-binpkg.py "${{ matrix.list }}" /var/cache/binpkgs
+
+      - name: Upload build report (always, even on failure — this is how you get the detail)
+        if: always()
+        working-directory: src
+        run: |
+          if [ -f /var/cache/binpkgs/build-report.json ]; then
+            python3 scripts/upload-single-asset.py \
+              /var/cache/binpkgs/build-report.json \
+              "${{ steps.tag.outputs.tag }}" \
+              "build-report-${{ matrix.group }}.json"
+          fi
+
+      - name: Save ccache
+        if: always()
+        run: python3 src/scripts/sync-ccache.py push "${{ matrix.group }}" "$CCACHE_DIR"
 
       - name: Upload packages to release
         working-directory: src

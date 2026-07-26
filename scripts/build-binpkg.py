@@ -2,10 +2,20 @@
 """
 ◈ build-binpkg.py
 
-Reads packages.list, runs `emerge --buildpkg --usepkg=n` for each atom inside
-the musl-llvm build container, and leaves finished .gpkg.tar (or legacy
+Reads packages.list, runs `emerge --buildpkg` for each atom inside the
+musl-llvm build container, and leaves finished .gpkg.tar (or legacy
 .tbz2, depending on Portage's binpkg-format setting) files under PKGDIR
 for a later step to collect and upload.
+
+CORRECTED from an earlier revision: the emerge invocation no longer passes
+--nodeps. That flag told Portage to build *only* the named atom and refuse
+to pull in anything it depends on — fine for packages whose deps happened
+to already exist in the stage3 image, but a real (and previously
+unflagged) design mistake for anything with actual dependencies not yet
+present (mesa, wlroots, sway, firefox, the Qt/KDE stack, etc. all failed
+because of this, not because of naming). Normal dependency resolution
+with --usepkg=y also lets later atoms in the same run reuse binpkgs
+already built for shared dependencies earlier in that run.
 
 Stdlib only — no third-party deps, consistent with the rest of the toolchain.
 
@@ -46,7 +56,7 @@ def build_atom(atom: str, use_override: str | None, pkgdir: Path) -> tuple[bool,
         # translate "lua,-python" into a USE string: "lua -python"
         env_use = " ".join(flag.strip() for flag in use_override.split(","))
 
-    cmd = ["emerge", "--buildpkg", "--usepkg=n", "--nodeps", "--quiet-build=y", atom]
+    cmd = ["emerge", "--buildpkg", "--usepkg=y", "--quiet-build=y", atom]
 
     print(f"[build] {atom} (USE={env_use or 'default'})")
     import os
