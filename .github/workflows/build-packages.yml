@@ -1,17 +1,22 @@
 # ◈ build-packages.yml
 #
-# Builds three package groups in parallel — core, graphics, calamares — each
-# in its own gentoo/stage3:musl-llvm container job. This split exists
+# Builds four package groups in parallel — core, graphics, desktop, calamares
+# — each in its own gentoo/stage3:musl-llvm container job. This split exists
 # because GitHub-hosted runners hard-cap every job at 6 hours regardless of
-# plan, and a serial Qt+KDE-Frameworks+Mesa+Calamares build could realistically
-# exceed that. Each group also gets its own ccache, persisted as a release
-# asset between runs, so the Sunday rebuild only recompiles what changed.
+# plan, and a serial Mesa+Sway+Firefox+Qt+KDE-Frameworks+Calamares build could
+# easily exceed that (Firefox alone can take hours on its own). Each group
+# gets its own ccache, persisted as a release asset between runs, so repeat
+# builds only recompile what changed.
+#
+# `git` is NOT present in gentoo/stage3:musl-llvm, so source is fetched as a
+# tarball via the GitHub API (urllib) instead of `git clone` — same root
+# cause as the Node/musl incompatibility already solved for the ISO
+# pipeline: don't assume tooling beyond what the container actually ships.
 #
 # A final non-container job merges each group's Packages-index fragment,
 # signs the result, and publishes to gh-pages. That job runs on plain
-# ubuntu-latest (no musl container), so actions/checkout is fine there —
-# the Node/musl incompatibility only applies to steps executing inside the
-# stage3:musl-llvm container.
+# ubuntu-latest (no musl container), so actions/checkout and git are fine
+# there — the container-only restrictions don't apply to it.
 
 name: Build binary packages
 
@@ -39,6 +44,8 @@ jobs:
             list: packages.list
           - group: graphics
             list: packages.graphics.list
+          - group: desktop
+            list: packages.desktop.list
           - group: calamares
             list: packages.calamares.list
     container:
@@ -49,12 +56,11 @@ jobs:
       GITHUB_REPOSITORY: ${{ github.repository }}
       CCACHE_DIR: /var/cache/ccache
     steps:
-      - name: Clone repo (direct git, not actions/checkout)
+      - name: Fetch repo tarball (git is not present in this container)
         run: |
-          git clone --depth 1 \
-            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-            src
-          cd src && git checkout "${{ github.sha }}"
+          python3 -c "import os,urllib.request as u; t=os.environ['GITHUB_TOKEN']; r=os.environ['GITHUB_REPOSITORY']; s=os.environ['GITHUB_SHA']; req=u.Request('https://api.github.com/repos/%s/tarball/%s' % (r, s), headers={'Authorization':'Bearer '+t,'Accept':'application/vnd.github+json'}); open('/tmp/src.tar.gz','wb').write(u.urlopen(req).read())"
+          mkdir -p src
+          tar -xzf /tmp/src.tar.gz -C src --strip-components=1
 
       - name: Sync portage tree
         run: emerge-webrsync
@@ -131,7 +137,7 @@ jobs:
       - name: Download each group's Packages fragment
         run: |
           mkdir -p fragments
-          for group in core graphics calamares; do
+          for group in core graphics desktop calamares; do
             gh release download "${{ steps.tag.outputs.tag }}" \
               --pattern "Packages.$group" --dir fragments --clobber || \
               echo "[warn] fragment missing for $group"
@@ -143,7 +149,7 @@ jobs:
         run: |
           python3 scripts/merge-packages-index.py \
             Packages.final \
-            fragments/Packages.core fragments/Packages.graphics fragments/Packages.calamares
+            fragments/Packages.core fragments/Packages.graphics fragments/Packages.desktop fragments/Packages.calamares
 
       - name: Sign merged index
         run: python3 scripts/sign-packages.py Packages.final Packages.sig

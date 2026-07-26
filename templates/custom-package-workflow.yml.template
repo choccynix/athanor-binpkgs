@@ -31,12 +31,11 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
-      - name: Clone repo (direct git, not actions/checkout)
+      - name: Fetch repo tarball (git is not present in this container)
         run: |
-          git clone --depth 1 \
-            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-            src
-          cd src && git checkout "${{ github.sha }}"
+          python3 -c "import os,urllib.request as u; t=os.environ['GITHUB_TOKEN']; r=os.environ['GITHUB_REPOSITORY']; s=os.environ['GITHUB_SHA']; req=u.Request('https://api.github.com/repos/%s/tarball/%s' % (r, s), headers={'Authorization':'Bearer '+t,'Accept':'application/vnd.github+json'}); open('/tmp/src.tar.gz','wb').write(u.urlopen(req).read())"
+          mkdir -p src
+          tar -xzf /tmp/src.tar.gz -C src --strip-components=1
 
       - name: Sync portage tree
         run: emerge-webrsync
