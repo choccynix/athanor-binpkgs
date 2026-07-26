@@ -1,31 +1,5 @@
 # ◈ packages.desktop.list — usable live-environment desktop
-#
-# Split into its own matrix group (rather than folded into
-# packages.graphics.list) because Firefox alone can take hours to compile —
-# keeping it isolated means it doesn't extend the graphics group's build
-# time, and it gets its own ccache so repeat builds aren't starting cold.
-#
-# ON FIREFOX-BIN: checked — Mozilla's official firefox-bin package is built
-# against glibc, not musl. On a pure musl system it won't run without
-# gcompat (a glibc compatibility shim), which isn't a good fit here given
-# AthanorOS's musl-first minimalism — installing gcompat just to run one
-# glibc binary works against the whole point of the profile. So this is a
-# genuine from-source build, not a shortcut. Known rough edges building
-# Firefox under musl+llvm (both solvable, both already hit by others):
-#   - LTO can stack-overflow linking libxul.so, since musl's default stack
-#     (80KB) is much smaller than glibc's (2-10MB) — fix is linking with
-#     -Wl,-z,stack-size=N or building clang/lld with a larger default stack.
-#   - Firefox's build system assumes a glibc rust target by default; needs
-#     the musl rust target instead (modern rustc/Gentoo ebuilds generally
-#     handle this correctly today, but worth confirming with the actual
-#     firefox ebuild revision in your synced tree).
-#
-# sway itself is a full tiling Wayland compositor (as opposed to cage's
-# single-app kiosk mode in packages.graphics.list) — appropriate now that
-# the goal is a genuinely usable live desktop, not just launching Calamares.
-# foot is included as a minimal terminal, since sway needs at least one to
-# be useful standalone.
 
-gui-apps/sway
-x11-terms/foot
-www-client/firefox            use:-tests,-debug
+gui-wm/sway
+gui-apps/foot
+www-client/firefox            use:-test,-debug

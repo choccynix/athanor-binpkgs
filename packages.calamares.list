@@ -1,33 +1,18 @@
 # ◈ packages.calamares.list — installer stack
 #
-# ASSUMPTION (flag if wrong): Qt5 + KDE Frameworks 5, not Qt6/KF6. Rationale —
-# Qt5/KF5 has a longer track record building under musl (other musl distros'
-# Calamares packaging is still mostly Qt5-based); Qt6/KF6 musl support is
-# newer and less proven. Worth revisiting once KF6 musl builds are more
-# battle-tested elsewhere.
-#
-# OPEN ITEM: Calamares + KPMcore may not live in the main Gentoo tree in
-# every version — check whether your Catalyst portage confdir already has
-# an overlay enabled (e.g. GURU) before this builds. If not, build-packages.yml
-# will need an `eselect repository enable guru && emaint sync --repo guru`
-# step (or equivalent) added ahead of the emerge step for this list. Flagging
-# rather than assuming, since I haven't verified current package.mask state
-# for your exact profile.
-#
-# qtwayland is included on the assumption the graphics stack is Wayland+cage
-# (see packages.graphics.list) — Calamares needs it to run as a native
-# Wayland client rather than falling back to XWayland.
+# ASSUMPTION: Qt5 + KDE Frameworks 5, not Qt6/KF6.
+# Qt5 packages require slot :5 in Portage.
 
-dev-qt/qtcore
-dev-qt/qtgui
-dev-qt/qtwidgets
-dev-qt/qtnetwork
-dev-qt/qtsvg
-dev-qt/qtdeclarative
-dev-qt/qtquickcontrols2
-dev-qt/qtwayland
-dev-qt/qttranslations
-dev-qt/qtdbus
+dev-qt/qtcore:5
+dev-qt/qtgui:5
+dev-qt/qtwidgets:5
+dev-qt/qtnetwork:5
+dev-qt/qtsvg:5
+dev-qt/qtdeclarative:5
+dev-qt/qtquickcontrols2:5
+dev-qt/qtwayland:5
+dev-qt/qttranslations:5
+dev-qt/qtdbus:5
 
 kde-frameworks/extra-cmake-modules
 kde-frameworks/kcoreaddons
@@ -48,8 +33,8 @@ sys-fs/e2fsprogs
 sys-fs/dosfstools
 sys-fs/ntfs3g
 
-app-crypt/polkit
+sys-auth/polkit
 dev-libs/yaml-cpp
 dev-libs/boost
 
-app-admin/calamares               use:-qml,qt5
+app-admin/calamares
