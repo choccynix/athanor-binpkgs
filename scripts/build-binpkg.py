@@ -17,6 +17,15 @@ because of this, not because of naming). Normal dependency resolution
 with --usepkg=y also lets later atoms in the same run reuse binpkgs
 already built for shared dependencies earlier in that run.
 
+Also passes --autounmask-write=y --autounmask-continue=y: Portage's own
+solver frequently determines a shared dependency (libxkbcommon, libglvnd,
+freetype, boost, etc.) needs a specific USE flag enabled to satisfy
+something deeper in the tree, and without these flags it just reports the
+needed change and stops rather than applying it. These flags let it write
+the change to /etc/portage/package.use and continue automatically —
+standard practice for a disposable CI container building a real
+dependency tree, rather than chasing every transitive USE flag by hand.
+
 Stdlib only — no third-party deps, consistent with the rest of the toolchain.
 
 Usage:
@@ -56,7 +65,8 @@ def build_atom(atom: str, use_override: str | None, pkgdir: Path) -> tuple[bool,
         # translate "lua,-python" into a USE string: "lua -python"
         env_use = " ".join(flag.strip() for flag in use_override.split(","))
 
-    cmd = ["emerge", "--buildpkg", "--usepkg=y", "--quiet-build=y", atom]
+    cmd = ["emerge", "--buildpkg", "--usepkg=y", "--quiet-build=y",
+           "--autounmask-write=y", "--autounmask-continue=y", atom]
 
     print(f"[build] {atom} (USE={env_use or 'default'})")
     import os

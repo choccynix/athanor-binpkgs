@@ -14,6 +14,11 @@ generate-packages-index.py to consume.
 Requires GITHUB_TOKEN and GITHUB_REPOSITORY (both set automatically inside
 GitHub Actions) in the environment.
 
+CORRECTED from an earlier revision: deletes any existing asset with the
+same name before uploading. Without this, re-running the workflow on the
+same UTC day (same rolling tag) crashed with a 422 "already_exists" the
+moment it hit a filename already uploaded by an earlier attempt that day.
+
 Usage:
     python3 upload-release.py PKGDIR binpkgs-rolling-20260726 upload-map.json
 """
@@ -59,6 +64,15 @@ def get_or_create_release(repo: str, tag: str, token: str) -> dict:
     return api_request("POST", f"{API}/repos/{repo}/releases", token, data=payload)
 
 
+def delete_existing_asset(release: dict, name: str, repo: str, token: str) -> None:
+    for asset in release.get("assets", []):
+        if asset["name"] == name:
+            req = urllib.request.Request(f"{API}/repos/{repo}/releases/assets/{asset['id']}", method="DELETE")
+            req.add_header("Authorization", f"Bearer {token}")
+            urllib.request.urlopen(req)
+            return
+
+
 def upload_asset(release: dict, file_path: Path, token: str) -> dict:
     upload_url = release["upload_url"].split("{", 1)[0]
     mime, _ = mimetypes.guess_type(str(file_path))
@@ -93,6 +107,7 @@ def main():
     for f in files:
         rel = str(f.relative_to(pkgdir))
         print(f"[upload] {rel}")
+        delete_existing_asset(release, f.name, repo, token)
         asset = upload_asset(release, f, token)
         upload_map[rel] = asset["browser_download_url"]
 
