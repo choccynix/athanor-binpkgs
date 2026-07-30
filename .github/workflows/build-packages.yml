@@ -50,6 +50,8 @@ jobs:
             list: packages.graphics.list
           - group: desktop
             list: packages.desktop.list
+          - group: firefox
+            list: packages.firefox.list
           - group: calamares
             list: packages.calamares.list
     container:
@@ -180,7 +182,7 @@ jobs:
       - name: Download each group's Packages fragment
         run: |
           mkdir -p fragments
-          for group in core graphics desktop calamares; do
+          for group in core graphics desktop firefox calamares; do
             gh release download "${{ steps.tag.outputs.tag }}" \
               --pattern "Packages.$group" --dir fragments --clobber || \
               echo "[warn] fragment missing for $group"
@@ -192,7 +194,7 @@ jobs:
         run: |
           python3 scripts/merge-packages-index.py \
             Packages.final \
-            fragments/Packages.core fragments/Packages.graphics fragments/Packages.desktop fragments/Packages.calamares
+            fragments/Packages.core fragments/Packages.graphics fragments/Packages.desktop fragments/Packages.firefox fragments/Packages.calamares
 
       - name: Sign merged index
         run: python3 scripts/sign-packages.py Packages.final Packages.sig

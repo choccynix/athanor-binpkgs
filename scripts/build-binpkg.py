@@ -2,10 +2,10 @@
 """
 ◈ build-binpkg.py
 
-Reads packages.list, runs `emerge --buildpkg` for each atom inside the
-musl-llvm build container, and leaves finished .gpkg.tar (or legacy
-.tbz2, depending on Portage's binpkg-format setting) files under PKGDIR
-for a later step to collect and upload.
+Reads packages.list, runs ONE combined `emerge --buildpkg` covering every
+atom in the list, and leaves finished .gpkg.tar (or legacy .tbz2, depending
+on Portage's binpkg-format setting) files under PKGDIR for a later step to
+collect and upload.
 
 CORRECTED from an earlier revision: the emerge invocation no longer passes
 --nodeps. That flag told Portage to build *only* the named atom and refuse
@@ -13,9 +13,26 @@ to pull in anything it depends on — fine for packages whose deps happened
 to already exist in the stage3 image, but a real (and previously
 unflagged) design mistake for anything with actual dependencies not yet
 present (mesa, wlroots, sway, firefox, the Qt/KDE stack, etc. all failed
-because of this, not because of naming). Normal dependency resolution
-with --usepkg=y also lets later atoms in the same run reuse binpkgs
-already built for shared dependencies earlier in that run.
+because of this, not because of naming).
+
+CORRECTED AGAIN from an earlier revision: this used to call `emerge` once
+per atom in a loop. That broke down for interdependent sets like the
+Calamares/KDE-Frameworks stack — e.g. dev-libs/boost got merged early with
+default USE flags (its own line in the list), then later, resolving
+calamares itself, autounmask correctly determined boost also needed
++python +python_targets_python3_13, but boost was already installed with
+different flags from its own separate emerge call, and Portage won't
+retroactively change an already-merged package's USE mid-run. Building
+every atom in ONE combined `emerge` call lets Portage's solver pick
+mutually consistent USE flags for shared dependencies across the whole set
+from the start, which is what per-atom REQUIRED_USE/USE conflicts like
+this actually need.
+
+Per-atom USE overrides (the `use:` column in packages*.list) are written to
+/etc/portage/package.use/ci-overrides *before* the combined emerge runs,
+since a single combined invocation only accepts one global USE environment
+value — per-package overrides have to come from package.use to apply
+individually.
 
 Also passes --autounmask-write=y --autounmask-continue=y: Portage's own
 solver frequently determines a shared dependency (libxkbcommon, libglvnd,
@@ -32,13 +49,16 @@ Usage:
     python3 build-binpkg.py packages.list /var/cache/binpkgs
 
 Exit codes:
-    0  all atoms built successfully
-    1  one or more atoms failed (failures are still logged/collected so CI
-       can report per-package status rather than aborting the whole run)
+    0  the combined emerge run succeeded (every atom in the list got built
+       or was already satisfied)
+    1  the combined emerge run failed — build-report.json's "log_tail"
+       has the real reason; it applies to the whole list, since a single
+       combined invocation doesn't produce clean per-atom pass/fail
 """
+import os
+import re
 import subprocess
 import sys
-import re
 import json
 from pathlib import Path
 
@@ -59,29 +79,21 @@ def parse_packages_list(path: Path):
     return atoms
 
 
-def build_atom(atom: str, use_override: str | None, pkgdir: Path) -> tuple[bool, str]:
-    env_use = ""
-    if use_override:
-        # translate "lua,-python" into a USE string: "lua -python"
-        env_use = " ".join(flag.strip() for flag in use_override.split(","))
+def write_package_use_overrides(atoms) -> None:
+    lines = []
+    for atom, use_override in atoms:
+        if not use_override:
+            continue
+        flags = " ".join(flag.strip() for flag in use_override.split(","))
+        lines.append(f"{atom} {flags}")
 
-    cmd = ["emerge", "--buildpkg", "--usepkg=y", "--quiet-build=y",
-           "--autounmask-write=y", "--autounmask-continue=y", atom]
+    if not lines:
+        return
 
-    print(f"[build] {atom} (USE={env_use or 'default'})")
-    import os
-    env = os.environ.copy()
-    env["PKGDIR"] = str(pkgdir)
-    if env_use:
-        env["USE"] = f"{env.get('USE', '')} {env_use}".strip()
-
-    result = subprocess.run(cmd, env=env, capture_output=True, text=True)
-    ok = result.returncode == 0
-    if not ok:
-        print(f"[fail] {atom}\n{result.stderr[-4000:]}", file=sys.stderr)
-    else:
-        print(f"[ok]   {atom}")
-    return ok, result.stderr
+    override_dir = Path("/etc/portage/package.use")
+    override_dir.mkdir(parents=True, exist_ok=True)
+    (override_dir / "ci-overrides").write_text("\n".join(lines) + "\n")
+    print(f"[info] wrote {len(lines)} per-atom USE override(s) to package.use/ci-overrides")
 
 
 def main():
@@ -94,20 +106,37 @@ def main():
     pkgdir.mkdir(parents=True, exist_ok=True)
 
     atoms = parse_packages_list(list_path)
-    print(f"[info] {len(atoms)} atoms to build")
+    print(f"[info] {len(atoms)} atoms to build (one combined emerge invocation)")
 
-    results = {}
-    any_failed = False
-    for atom, use_override in atoms:
-        ok, log = build_atom(atom, use_override, pkgdir)
-        results[atom] = {"ok": ok, "log_tail": log[-2000:] if not ok else ""}
-        any_failed = any_failed or not ok
+    write_package_use_overrides(atoms)
 
+    env = os.environ.copy()
+    env["PKGDIR"] = str(pkgdir)
+
+    cmd = [
+        "emerge", "--buildpkg", "--usepkg=y", "--quiet-build=y",
+        "--autounmask-write=y", "--autounmask-continue=y",
+    ] + [atom for atom, _ in atoms]
+
+    print(f"[build] {' '.join(a for a, _ in atoms)}")
+    result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    ok = result.returncode == 0
+
+    if ok:
+        print("[ok] combined build succeeded")
+    else:
+        print(f"[fail] combined build failed\n{result.stderr[-4000:]}", file=sys.stderr)
+
+    report = {
+        "atoms": [atom for atom, _ in atoms],
+        "ok": ok,
+        "log_tail": "" if ok else (result.stdout[-4000:] + "\n" + result.stderr[-4000:]),
+    }
     report_path = pkgdir / "build-report.json"
-    report_path.write_text(json.dumps(results, indent=2))
+    report_path.write_text(json.dumps(report, indent=2))
     print(f"[info] report written to {report_path}")
 
-    sys.exit(1 if any_failed else 0)
+    sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":

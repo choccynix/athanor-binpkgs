@@ -22,14 +22,16 @@ that exact mechanism instead of reinventing it.
 ```
 athanor-binpkgs/
 ├── packages.list               core set: small, fast-building tools
-├── packages.graphics.list      Wayland-minimal graphics stack (mesa, cage, seatd)
+├── packages.graphics.list      Wayland-minimal graphics stack (mesa, wlroots, seatd)
+├── packages.desktop.list       usable live desktop (sway, foot)
+├── packages.firefox.list       firefox, isolated in its own group (long compile)
 ├── packages.calamares.list     installer stack (Qt5, KF5, KPMcore, Calamares)
 ├── .github/workflows/
-│   ├── build-packages.yml      matrix build across all three lists, then merges
+│   ├── build-packages.yml      matrix build across all five lists, then merges
 │   │                           + signs + publishes one combined Packages index
 │   └── publish-index.yml       manual re-sign/re-publish without a full rebuild
 ├── scripts/
-│   ├── build-binpkg.py         wraps emerge --buildpkg for CI and local use
+│   ├── build-binpkg.py         one combined `emerge --buildpkg` per list (CI + local use)
 │   ├── generate-packages-index.py  builds the Portage-compatible Packages file
 │   ├── merge-packages-index.py     combines each group's fragment into one index
 │   ├── sync-ccache.py          persists a per-group ccache between CI runs
@@ -40,16 +42,25 @@ athanor-binpkgs/
 └── docs/                       setup guide, contributing guide, signing notes
 ```
 
-## Why three lists instead of one
+## Why five lists instead of one
 
 GitHub-hosted runners hard-cap every job at 6 hours, no matter the plan. A
-serial build of Mesa + Qt5 + KDE Frameworks + KPMcore + Calamares could
-plausibly exceed that. `build-packages.yml` builds `core`, `graphics`, and
-`calamares` as three parallel matrix jobs, each with its own ccache
-(persisted as a release asset on a fixed `build-cache` tag), so the first
-run is slow but every rebuild after that only recompiles what changed. A
-final job merges all three groups' index fragments into one combined
-`Packages` file before publishing.
+serial build of Mesa + Sway + Firefox + Qt5 + KDE Frameworks + KPMcore +
+Calamares could easily exceed that (Firefox alone has hit the ceiling on
+its own). `build-packages.yml` builds `core`, `graphics`, `desktop`,
+`firefox`, and `calamares` as five parallel matrix jobs, each with its own
+ccache (persisted as a release asset on a fixed `build-cache` tag), so the
+first run is slow but every rebuild after that only recompiles what
+changed — and a slow group like `firefox` can't hold up or get cancelled
+alongside fast ones like `desktop`. A final job merges all five groups'
+index fragments into one combined `Packages` file before publishing.
+
+Each group's `emerge` invocation covers its *entire* list in one call
+rather than one atom at a time — that's what lets Portage's solver pick
+mutually consistent USE flags for shared dependencies (e.g. `boost` needing
+`python` for `calamares` but not for anything else in `core`) instead of
+locking in a USE combination too early and hitting a conflict later in the
+same run.
 
 ## Quick start (consuming packages)
 
