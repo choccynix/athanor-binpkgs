@@ -1,12 +1,16 @@
 # ◈ build-packages.yml
 #
-# Builds four package groups in parallel — core, graphics, desktop, calamares
-# — each in its own gentoo/stage3:musl-llvm container job. This split exists
-# because GitHub-hosted runners hard-cap every job at 6 hours regardless of
-# plan, and a serial Mesa+Sway+Firefox+Qt+KDE-Frameworks+Calamares build could
-# easily exceed that (Firefox alone can take hours on its own). Each group
-# gets its own ccache, persisted as a release asset between runs, so repeat
-# builds only recompile what changed.
+# Builds seven package groups in parallel — core, graphics, desktop,
+# firefox, kde-qt, xorg, xlibre — each in its own gentoo/stage3:musl-llvm
+# container job. This split exists because GitHub-hosted runners hard-cap
+# every job at 6 hours regardless of plan, and firefox alone has hit that
+# ceiling on its own. Each group gets its own ccache, persisted as a
+# release asset between runs, so repeat builds only recompile what changed.
+#
+# xorg and xlibre are alternatives to each other, not additions — see
+# packages.xlibre.list for why they can't be installed on the same system
+# (file collisions), and why both still get built and published anyway
+# (the choice of which to install is left to whoever consumes the binhost).
 #
 # `git` is NOT present in gentoo/stage3:musl-llvm, so source is fetched as a
 # tarball via the GitHub API (urllib) instead of `git clone` — same root
@@ -52,8 +56,12 @@ jobs:
             list: packages.desktop.list
           - group: firefox
             list: packages.firefox.list
-          - group: calamares
-            list: packages.calamares.list
+          - group: kde-qt
+            list: packages.kde-qt.list
+          - group: xorg
+            list: packages.xorg.list
+          - group: xlibre
+            list: packages.xlibre.list
     container:
       image: gentoo/stage3:musl-llvm
       options: --privileged
@@ -71,9 +79,26 @@ jobs:
       - name: Sync portage tree
         run: emerge-webrsync
 
-      # OPEN ITEM (see packages.calamares.list header): if calamares/kpmcore
-      # need an overlay not enabled by default in this container, add that
-      # step here, gated on matrix.group == 'calamares'.
+      - name: Add XLibre overlay (xlibre group only)
+        if: matrix.group == 'xlibre'
+        run: |
+          # XLibre is not in the main Gentoo tree — checked, confirmed via
+          # the Gentoo wiki and the overlay's own repo. Fetched as a tarball
+          # (git isn't present in this container, same as the repo fetch
+          # step above) rather than assuming it's registered for
+          # `eselect repository enable`.
+          python3 -c "import urllib.request as u; open('/tmp/xlibre.tar.gz','wb').write(u.urlopen('https://api.github.com/repos/X11Libre/ports-gentoo/tarball').read())"
+          mkdir -p /var/db/repos/xlibre
+          tar -xzf /tmp/xlibre.tar.gz -C /var/db/repos/xlibre --strip-components=1
+          mkdir -p /etc/portage/repos.conf
+          printf '[xlibre]\nlocation = /var/db/repos/xlibre\n' > /etc/portage/repos.conf/xlibre.conf
+          # Ebuilds in this overlay are commonly ~arch only, not stable —
+          # scoped to just these atoms, not a system-wide ACCEPT_KEYWORDS bump.
+          mkdir -p /etc/portage/package.accept_keywords
+          {
+            echo "x11-base/xlibre-server ~amd64"
+            echo "x11-base/xlibre-drivers ~amd64"
+          } > /etc/portage/package.accept_keywords/xlibre-overlay
 
       - name: Restore ccache
         run: |
@@ -81,8 +106,8 @@ jobs:
           python3 src/scripts/sync-ccache.py pull "${{ matrix.group }}" "$CCACHE_DIR"
           echo 'FEATURES="${FEATURES} ccache"' >> /etc/portage/make.conf
 
-      - name: Best-effort testing-keyword acceptance (calamares group only)
-        if: matrix.group == 'calamares'
+      - name: Best-effort testing-keyword acceptance (kde-qt group only)
+        if: matrix.group == 'kde-qt'
         run: |
           # gentoo/musl/llvm is an experimental profile — several of these
           # atoms may only exist keyworded ~amd64 (testing), not stable amd64.
@@ -102,7 +127,6 @@ jobs:
             echo "dev-qt/qtdbus ~amd64"
             echo "kde-frameworks/* ~amd64"
             echo "sys-libs/kpmcore ~amd64"
-            echo "app-admin/calamares ~amd64"
           } > /etc/portage/package.accept_keywords/athanor-ci
 
       - name: Diagnose unresolvable atoms (informational, does not fail the job)
@@ -182,7 +206,7 @@ jobs:
       - name: Download each group's Packages fragment
         run: |
           mkdir -p fragments
-          for group in core graphics desktop firefox calamares; do
+          for group in core graphics desktop firefox kde-qt xorg xlibre; do
             gh release download "${{ steps.tag.outputs.tag }}" \
               --pattern "Packages.$group" --dir fragments --clobber || \
               echo "[warn] fragment missing for $group"
@@ -194,7 +218,7 @@ jobs:
         run: |
           python3 scripts/merge-packages-index.py \
             Packages.final \
-            fragments/Packages.core fragments/Packages.graphics fragments/Packages.desktop fragments/Packages.firefox fragments/Packages.calamares
+            fragments/Packages.core fragments/Packages.graphics fragments/Packages.desktop fragments/Packages.firefox fragments/Packages.kde-qt fragments/Packages.xorg fragments/Packages.xlibre
 
       - name: Sign merged index
         run: python3 scripts/sign-packages.py Packages.final Packages.sig

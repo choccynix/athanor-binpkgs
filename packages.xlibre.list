@@ -1,0 +1,33 @@
+# ◈ packages.xlibre.list — XLibre fork + suckless desktop
+#
+# Alternative to packages.xorg.list, not an addition to it. XLibre forked
+# from Xorg in 2025 after a dispute over code quality/maintenance of
+# recent Xorg contributions. Checked and confirmed (not assumed):
+#   - XLibre is NOT in Gentoo's main tree — requires the X11Libre/ports-gentoo
+#     overlay (or a fork of it), added by build-packages.yml only for this
+#     matrix group.
+#   - x11-base/xlibre-server file-collides with x11-base/xorg-server. The
+#     overlay's own docs require removing xorg-server/xorg-drivers before
+#     installing xlibre-server on a real system. This isn't a problem for
+#     CI (each matrix group builds in its own fresh, disposable container,
+#     so there's never a moment both are installed together) — it matters
+#     for whoever consumes this binhost: pick ONE of xorg-server or
+#     xlibre-server to actually install, not both.
+#   - x11-base/xlibre-drivers is the overlay's meta-package for the driver
+#     set, used here instead of xf86-input-libinput directly since XLibre's
+#     driver packaging doesn't necessarily mirror Xorg's 1:1.
+#   - Ebuilds in this overlay are commonly ~arch (testing) only, not
+#     stable-keyworded — build-packages.yml accepts ~amd64 for this group's
+#     atoms specifically, not system-wide.
+#
+# Less proven than packages.xorg.list — a young fork, smaller community,
+# less mileage under musl specifically. Worth treating xorg-server as the
+# default and xlibre-server as the opt-in experiment until it's had more
+# real-world runtime.
+
+x11-base/xlibre-server
+x11-base/xlibre-drivers
+
+x11-wm/dwm
+x11-terms/st
+x11-misc/dmenu

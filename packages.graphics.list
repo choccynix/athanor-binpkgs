@@ -22,7 +22,7 @@
 # If you'd rather target Xorg instead (more battle-tested with older
 # Calamares/KPMcore releases, heavier stack): swap this file's wayland/wlroots
 # entries for xorg-server + xf86-input-libinput + a minimal WM, and drop
-# qtwayland from packages.calamares.list.
+# qtwayland from packages.kde-qt.list.
 
 media-libs/mesa                   use:llvm,wayland,vulkan,-X
 x11-libs/libdrm

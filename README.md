@@ -25,9 +25,11 @@ athanor-binpkgs/
 ├── packages.graphics.list      Wayland-minimal graphics stack (mesa, wlroots, seatd)
 ├── packages.desktop.list       usable live desktop (sway, foot)
 ├── packages.firefox.list       firefox, isolated in its own group (long compile)
-├── packages.calamares.list     installer stack (Qt5, KF5, KPMcore, Calamares)
+├── packages.kde-qt.list        Qt5/KF5/KPMcore + partitioning tools (Calamares itself dropped)
+├── packages.xorg.list          mainline Xorg + suckless (dwm, st, dmenu)
+├── packages.xlibre.list        XLibre fork alternative to xorg.list (needs overlay, see file header)
 ├── .github/workflows/
-│   ├── build-packages.yml      matrix build across all five lists, then merges
+│   ├── build-packages.yml      matrix build across all seven lists, then merges
 │   │                           + signs + publishes one combined Packages index
 │   └── publish-index.yml       manual re-sign/re-publish without a full rebuild
 ├── scripts/
@@ -42,25 +44,35 @@ athanor-binpkgs/
 └── docs/                       setup guide, contributing guide, signing notes
 ```
 
-## Why five lists instead of one
+## Why seven lists instead of one
 
 GitHub-hosted runners hard-cap every job at 6 hours, no matter the plan. A
 serial build of Mesa + Sway + Firefox + Qt5 + KDE Frameworks + KPMcore +
-Calamares could easily exceed that (Firefox alone has hit the ceiling on
-its own). `build-packages.yml` builds `core`, `graphics`, `desktop`,
-`firefox`, and `calamares` as five parallel matrix jobs, each with its own
-ccache (persisted as a release asset on a fixed `build-cache` tag), so the
-first run is slow but every rebuild after that only recompiles what
-changed — and a slow group like `firefox` can't hold up or get cancelled
-alongside fast ones like `desktop`. A final job merges all five groups'
-index fragments into one combined `Packages` file before publishing.
+Xorg + XLibre could easily exceed that (Firefox alone has hit the ceiling
+on its own). `build-packages.yml` builds `core`, `graphics`, `desktop`,
+`firefox`, `kde-qt`, `xorg`, and `xlibre` as seven parallel matrix jobs,
+each with its own ccache (persisted as a release asset on a fixed
+`build-cache` tag), so the first run is slow but every rebuild after that
+only recompiles what changed — and a slow group like `firefox` can't hold
+up or get cancelled alongside fast ones like `desktop`. A final job merges
+all seven groups' index fragments into one combined `Packages` file
+before publishing.
+
+`xorg` and `xlibre` are **alternatives to each other, not additions** —
+XLibre (a 2025 Xorg fork) file-collides with Xorg itself, so only one can
+actually be installed on a real system at a time. Both still get built and
+published; the choice of which is left to whoever consumes the binhost.
+`xlibre` also needs a third-party overlay (not in Gentoo's main tree),
+added only for that one matrix job.
 
 Each group's `emerge` invocation covers its *entire* list in one call
 rather than one atom at a time — that's what lets Portage's solver pick
 mutually consistent USE flags for shared dependencies (e.g. `boost` needing
-`python` for `calamares` but not for anything else in `core`) instead of
+`python` for one consumer but not for anything else in `core`) instead of
 locking in a USE combination too early and hitting a conflict later in the
-same run.
+same run. This is exactly what happened with Calamares before it was
+dropped — its dependency on `boost[python]` conflicted with `boost`
+already having been merged plain elsewhere in the same list.
 
 ## Quick start (consuming packages)
 

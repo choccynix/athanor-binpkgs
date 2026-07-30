@@ -5,7 +5,7 @@
 Persists a per-group ccache directory as a release asset on a fixed tag
 (`build-cache`, never the dated rolling tags), so weekly rebuilds only
 recompile what actually changed instead of starting cold every time — this
-matters a lot for the graphics/calamares groups, which are the whole reason
+matters a lot for the graphics/firefox/kde-qt groups, which are the whole reason
 "long compile" is a concern here.
 
 Uses the same asset-replace mechanism as upload-single-asset.py under the

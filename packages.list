@@ -10,9 +10,12 @@
 #   category/package[-version]  [use:flag1,-flag2,flag3]
 #
 # This file is the CORE set — small, fast-building tools. Graphics stack
-# lives in packages.graphics.list, the Calamares installer stack in
-# packages.calamares.list. All three are built in parallel by
-# build-packages.yml's matrix, each with its own 6-hour job ceiling.
+# lives in packages.graphics.list, desktop usability (sway/foot) in
+# packages.desktop.list, firefox isolated in packages.firefox.list (long
+# compile), and the Qt5/KDE Frameworks stack in packages.kde-qt.list
+# (Calamares itself was dropped from that list, kept for its remaining
+# deps). All five are built in parallel by build-packages.yml's matrix,
+# each with its own 6-hour job ceiling.
 #
 # Examples (replace with your real curated set):
 

@@ -2,7 +2,7 @@
 """
 ◈ merge-packages-index.py
 
-Each matrix group (core / graphics / calamares) produces its own complete
+Each matrix group (core / graphics / desktop / firefox / kde-qt) produces its own complete
 Packages-format file via generate-packages-index.py. This just concatenates
 their stanzas under a single shared header, so the published binhost index
 looks like one coherent set to Portage rather than three.
