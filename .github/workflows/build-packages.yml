@@ -115,16 +115,11 @@ jobs:
           # bump, since that risks destabilizing unrelated packages.
           mkdir -p /etc/portage/package.accept_keywords
           {
-            echo "dev-qt/qtcore ~amd64"
-            echo "dev-qt/qtgui ~amd64"
-            echo "dev-qt/qtwidgets ~amd64"
-            echo "dev-qt/qtnetwork ~amd64"
+            echo "dev-qt/qtbase ~amd64"
             echo "dev-qt/qtsvg ~amd64"
             echo "dev-qt/qtdeclarative ~amd64"
-            echo "dev-qt/qtquickcontrols2 ~amd64"
             echo "dev-qt/qtwayland ~amd64"
             echo "dev-qt/qttranslations ~amd64"
-            echo "dev-qt/qtdbus ~amd64"
             echo "kde-frameworks/* ~amd64"
             echo "sys-libs/kpmcore ~amd64"
           } > /etc/portage/package.accept_keywords/athanor-ci

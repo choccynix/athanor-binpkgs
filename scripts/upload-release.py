@@ -14,10 +14,17 @@ generate-packages-index.py to consume.
 Requires GITHUB_TOKEN and GITHUB_REPOSITORY (both set automatically inside
 GitHub Actions) in the environment.
 
-CORRECTED from an earlier revision: deletes any existing asset with the
-same name before uploading. Without this, re-running the workflow on the
-same UTC day (same rolling tag) crashed with a 422 "already_exists" the
-moment it hit a filename already uploaded by an earlier attempt that day.
+CORRECTED AGAIN from an earlier revision: delete-then-upload wasn't actually
+safe — every matrix group uploads to the same shared release tag in
+parallel, and any package name shared across groups (dwm/st/dmenu built
+identically by both xorg and xlibre; messagebus/polkitd account packages
+pulled in by several groups; lvm2 in both core and kde-qt) can race: two
+jobs both check "does this exist yet", both see no, and one of them's
+upload gets a 422 "already_exists" a moment later when the other's finishes
+first. Deleting first doesn't fix a race, it just moves it earlier.
+Instead, a 422 already_exists is now treated as success — if another
+parallel job already uploaded this exact package, we don't need to re-
+upload it, just look up and reuse its existing download URL.
 
 Usage:
     python3 upload-release.py PKGDIR binpkgs-rolling-20260726 upload-map.json
@@ -40,13 +47,8 @@ def api_request(method: str, url: str, token: str, data: bytes | None = None, co
     req.add_header("X-GitHub-Api-Version", "2022-11-28")
     if data is not None:
         req.add_header("Content-Type", content_type)
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")
-        print(f"[error] {method} {url} -> {e.code}\n{body}", file=sys.stderr)
-        raise
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read().decode())
 
 
 def get_or_create_release(repo: str, tag: str, token: str) -> dict:
@@ -64,13 +66,12 @@ def get_or_create_release(repo: str, tag: str, token: str) -> dict:
     return api_request("POST", f"{API}/repos/{repo}/releases", token, data=payload)
 
 
-def delete_existing_asset(release: dict, name: str, repo: str, token: str) -> None:
+def find_existing_asset_url(repo: str, tag: str, name: str, token: str) -> str | None:
+    release = api_request("GET", f"{API}/repos/{repo}/releases/tags/{tag}", token)
     for asset in release.get("assets", []):
         if asset["name"] == name:
-            req = urllib.request.Request(f"{API}/repos/{repo}/releases/assets/{asset['id']}", method="DELETE")
-            req.add_header("Authorization", f"Bearer {token}")
-            urllib.request.urlopen(req)
-            return
+            return asset["browser_download_url"]
+    return None
 
 
 def upload_asset(release: dict, file_path: Path, token: str) -> dict:
@@ -107,9 +108,21 @@ def main():
     for f in files:
         rel = str(f.relative_to(pkgdir))
         print(f"[upload] {rel}")
-        delete_existing_asset(release, f.name, repo, token)
-        asset = upload_asset(release, f, token)
-        upload_map[rel] = asset["browser_download_url"]
+        try:
+            asset = upload_asset(release, f, token)
+            upload_map[rel] = asset["browser_download_url"]
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors="replace")
+            if e.code == 422 and "already_exists" in body:
+                print(f"[skip] {f.name} already uploaded by a parallel group, reusing its URL")
+                existing_url = find_existing_asset_url(repo, tag, f.name, token)
+                if existing_url:
+                    upload_map[rel] = existing_url
+                else:
+                    print(f"[warn] couldn't find the existing asset for {f.name}, dropping it from the map", file=sys.stderr)
+            else:
+                print(f"[error] upload failed for {rel}: {e.code}\n{body}", file=sys.stderr)
+                raise
 
     out_map_path.write_text(json.dumps(upload_map, indent=2))
     print(f"[info] wrote {len(upload_map)} entries to {out_map_path}")

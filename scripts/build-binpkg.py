@@ -125,12 +125,12 @@ def main():
     if ok:
         print("[ok] combined build succeeded")
     else:
-        print(f"[fail] combined build failed\n{result.stderr[-4000:]}", file=sys.stderr)
+        print(f"[fail] combined build failed\n{result.stderr[-20000:]}", file=sys.stderr)
 
     report = {
         "atoms": [atom for atom, _ in atoms],
         "ok": ok,
-        "log_tail": "" if ok else (result.stdout[-4000:] + "\n" + result.stderr[-4000:]),
+        "log_tail": "" if ok else (result.stdout[-20000:] + "\n" + result.stderr[-20000:]),
     }
     report_path = pkgdir / "build-report.json"
     report_path.write_text(json.dumps(report, indent=2))
