@@ -92,13 +92,27 @@ jobs:
           tar -xzf /tmp/xlibre.tar.gz -C /var/db/repos/xlibre --strip-components=1
           mkdir -p /etc/portage/repos.conf
           printf '[xlibre]\nlocation = /var/db/repos/xlibre\n' > /etc/portage/repos.conf/xlibre.conf
-          # Ebuilds in this overlay are commonly ~arch only, not stable —
-          # scoped to just these atoms, not a system-wide ACCEPT_KEYWORDS bump.
+
+          # Best-effort: the overlay's own driver meta-package still
+          # depends on packages deeper in its tree that our initial
+          # 2-atom keyword list didn't cover (e.g. x11-drivers/xf86-input-
+          # libinput::xlibre came back masked by ~amd64/missing keyword on
+          # a real run) — widening to the whole ::xlibre repo rather than
+          # chasing each transitive atom individually.
           mkdir -p /etc/portage/package.accept_keywords
-          {
-            echo "x11-base/xlibre-server ~amd64"
-            echo "x11-base/xlibre-drivers ~amd64"
-          } > /etc/portage/package.accept_keywords/xlibre-overlay
+          echo "*/* ~amd64" > /etc/portage/package.accept_keywords/xlibre-overlay
+
+          # Confirmed on a real run: x11-base/xlibre-drivers' own
+          # dependency chain still pulls in mainline x11-base/xorg-server
+          # (the overlay's own dependency graph isn't fully xlibre-aware
+          # yet — a real immaturity gap in a young overlay, not a mistake
+          # in this list), causing exactly the file collision XLibre's docs
+          # warn about. Masking the ::gentoo copy specifically (not
+          # ::xlibre's own package of the same name) for this group only,
+          # so resolution is forced toward whatever the overlay actually
+          # intends instead of colliding with it.
+          mkdir -p /etc/portage/package.mask
+          echo "x11-base/xorg-server::gentoo" > /etc/portage/package.mask/xlibre-overlay
 
       - name: Restore ccache
         run: |

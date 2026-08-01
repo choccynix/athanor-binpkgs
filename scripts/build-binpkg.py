@@ -112,6 +112,18 @@ def main():
 
     env = os.environ.copy()
     env["PKGDIR"] = str(pkgdir)
+    # Without this, CONFIG_PROTECT treats everything under /etc/portage as
+    # protected, so --autounmask-write doesn't actually modify our own
+    # package.use/package.accept_keywords/package.mask files in place — it
+    # writes a separate pending ._cfg0000_ shadow file that never takes
+    # effect within the same run, and the "successfully written" message is
+    # misleading: nothing was actually applied. There's nothing in this
+    # disposable container worth protecting across upgrades, so these
+    # paths are unprotected entirely.
+    env["CONFIG_PROTECT_MASK"] = (
+        "/etc/portage/package.use /etc/portage/package.accept_keywords "
+        "/etc/portage/package.mask /etc/portage/package.unmask"
+    )
 
     cmd = [
         "emerge", "--buildpkg", "--usepkg=y", "--quiet-build=y",
