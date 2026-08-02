@@ -18,7 +18,26 @@
 #     driver packaging doesn't necessarily mirror Xorg's 1:1.
 #   - Ebuilds in this overlay are commonly ~arch (testing) only, not
 #     stable-keyworded — build-packages.yml accepts ~amd64 for this group's
-#     atoms specifically, not system-wide.
+#     atoms specifically, not system-wide (widened to the whole ::xlibre
+#     repo after a real run showed the driver meta-package pulls in
+#     transitive atoms beyond just the two top-level ones).
+#   - CONFIRMED via a real run: x11-base/xlibre-drivers' own dependency
+#     chain still pulled in mainline x11-base/xorg-server (the overlay's
+#     driver packaging isn't fully xlibre-aware yet), causing exactly the
+#     file collision described above. build-packages.yml now masks the
+#     ::gentoo copy specifically for this group to prevent that.
+#   - CONFIRMED via a real run: sys-auth/elogind itself fails to compile
+#     (a genuine ninja/meson build failure, not a masking/USE issue).
+#     XLibre needed elogind because that's what autounmask picked for its
+#     "elogind" USE flag. Worth knowing: XLibre's upstream project does
+#     support seatd as an alternative to elogind (confirmed via
+#     X11Libre/xserver's own docs and issue tracker — matches the seatd
+#     approach already used in packages.graphics.list), which would avoid
+#     needing elogind entirely. Not applying this as a use: override here
+#     since the exact Gentoo ebuild's USE flag name for it isn't confirmed
+#     (a young overlay's IUSE naming may not mirror wlroots' "seat"
+#     convention) — worth checking `emerge -pv x11-base/xlibre-server`
+#     against the real ebuild's IUSE list before guessing a flag name.
 #
 # Less proven than packages.xorg.list — a young fork, smaller community,
 # less mileage under musl specifically. Worth treating xorg-server as the

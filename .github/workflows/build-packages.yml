@@ -1,11 +1,12 @@
 # ◈ build-packages.yml
 #
 # Builds seven package groups in parallel — core, graphics, desktop,
-# firefox, kde-qt, xorg, xlibre — each in its own gentoo/stage3:musl-llvm
+# browser, kde-qt, xorg, xlibre — each in its own gentoo/stage3:musl-llvm
 # container job. This split exists because GitHub-hosted runners hard-cap
-# every job at 6 hours regardless of plan, and firefox alone has hit that
-# ceiling on its own. Each group gets its own ccache, persisted as a
-# release asset between runs, so repeat builds only recompile what changed.
+# every job at 6 hours regardless of plan — the browser group was isolated
+# after firefox (since replaced with webkit-gtk/surf) hit that ceiling on
+# its own. Each group gets its own ccache, persisted as a release asset
+# between runs, so repeat builds only recompile what changed.
 #
 # xorg and xlibre are alternatives to each other, not additions — see
 # packages.xlibre.list for why they can't be installed on the same system
@@ -54,8 +55,8 @@ jobs:
             list: packages.graphics.list
           - group: desktop
             list: packages.desktop.list
-          - group: firefox
-            list: packages.firefox.list
+          - group: browser
+            list: packages.browser.list
           - group: kde-qt
             list: packages.kde-qt.list
           - group: xorg
@@ -215,7 +216,7 @@ jobs:
       - name: Download each group's Packages fragment
         run: |
           mkdir -p fragments
-          for group in core graphics desktop firefox kde-qt xorg xlibre; do
+          for group in core graphics desktop browser kde-qt xorg xlibre; do
             gh release download "${{ steps.tag.outputs.tag }}" \
               --pattern "Packages.$group" --dir fragments --clobber || \
               echo "[warn] fragment missing for $group"
@@ -227,7 +228,7 @@ jobs:
         run: |
           python3 scripts/merge-packages-index.py \
             Packages.final \
-            fragments/Packages.core fragments/Packages.graphics fragments/Packages.desktop fragments/Packages.firefox fragments/Packages.kde-qt fragments/Packages.xorg fragments/Packages.xlibre
+            fragments/Packages.core fragments/Packages.graphics fragments/Packages.desktop fragments/Packages.browser fragments/Packages.kde-qt fragments/Packages.xorg fragments/Packages.xlibre
 
       - name: Sign merged index
         run: python3 scripts/sign-packages.py Packages.final Packages.sig

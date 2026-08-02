@@ -1,9 +1,12 @@
 # ◈ packages.desktop.list — usable live-environment desktop (minus firefox)
 #
 # CORRECTED from an earlier revision: firefox moved out to its own
-# packages.firefox.list / matrix group. A run of this group got cancelled
-# at GitHub's hard 6-hour job ceiling with firefox still compiling —
-# keeping firefox isolated means sway+foot succeed and get uploaded
+# packages.firefox.list / matrix group (since replaced with WebKitGTK/surf
+# as packages.browser.list, after firefox's build turned out to hit a
+# genuine LLVM compiler bug, not just a time-ceiling issue). A run of the
+# firefox group got cancelled at GitHub's hard 6-hour job ceiling with
+# firefox still compiling — keeping it isolated meant sway+foot succeed
+# and get uploaded
 # independently instead of being held hostage by firefox's multi-hour
 # build, and firefox gets its own dedicated ccache to resume from run to
 # run rather than competing with sway/foot's cache.

@@ -24,7 +24,7 @@ athanor-binpkgs/
 ├── packages.list               core set: small, fast-building tools
 ├── packages.graphics.list      Wayland-minimal graphics stack (mesa, wlroots, seatd)
 ├── packages.desktop.list       usable live desktop (sway, foot)
-├── packages.firefox.list       firefox, isolated in its own group (long compile)
+├── packages.browser.list       webkit-gtk + surf, isolated in its own group (replaces firefox, which hit LLVM's 6h compile ceiling)
 ├── packages.kde-qt.list        Qt5/KF5/KPMcore + partitioning tools (Calamares itself dropped)
 ├── packages.xorg.list          mainline Xorg + suckless (dwm, st, dmenu)
 ├── packages.xlibre.list        XLibre fork alternative to xorg.list (needs overlay, see file header)
@@ -47,13 +47,15 @@ athanor-binpkgs/
 ## Why seven lists instead of one
 
 GitHub-hosted runners hard-cap every job at 6 hours, no matter the plan. A
-serial build of Mesa + Sway + Firefox + Qt5 + KDE Frameworks + KPMcore +
-Xorg + XLibre could easily exceed that (Firefox alone has hit the ceiling
-on its own). `build-packages.yml` builds `core`, `graphics`, `desktop`,
-`firefox`, `kde-qt`, `xorg`, and `xlibre` as seven parallel matrix jobs,
-each with its own ccache (persisted as a release asset on a fixed
-`build-cache` tag), so the first run is slow but every rebuild after that
-only recompiles what changed — and a slow group like `firefox` can't hold
+serial build of Mesa + Sway + WebKitGTK + Qt5 + KDE Frameworks + KPMcore +
+Xorg + XLibre could easily exceed that (Firefox, previously in this slot,
+hit the ceiling on its own — replaced with WebKitGTK/surf after LLVM
+itself turned out to fail compiling for it, a genuine toolchain bug).
+`build-packages.yml` builds `core`, `graphics`, `desktop`, `browser`,
+`kde-qt`, `xorg`, and `xlibre` as seven parallel matrix jobs, each with
+its own ccache (persisted as a release asset on a fixed `build-cache`
+tag), so the first run is slow but every rebuild after that only
+recompiles what changed — and a slow group like `browser` can't hold
 up or get cancelled alongside fast ones like `desktop`. A final job merges
 all seven groups' index fragments into one combined `Packages` file
 before publishing.

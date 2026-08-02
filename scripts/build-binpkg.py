@@ -133,15 +133,36 @@ def main():
     print(f"[build] {' '.join(a for a, _ in atoms)}")
     result = subprocess.run(cmd, env=env, capture_output=True, text=True)
     ok = result.returncode == 0
+    retried = False
+
+    # CORRECTED from an earlier revision: --autounmask-continue=y is
+    # documented to write the change AND continue the same invocation when
+    # dependency calculation is otherwise fully resolved. In practice, on
+    # this container, it's been observed to write the change, print
+    # "Autounmask changes successfully written.", and then the invocation
+    # still exits non-zero with nothing further — reproduced identically
+    # across separate runs, so not a fluke. Rather than trust the flag to
+    # do what its docs say, if a run fails right after writing a change,
+    # just re-invoke emerge fresh once — a new process reliably starts by
+    # reading the config that was just written to disk, which is exactly
+    # the standard manual workaround Gentoo users already reach for when
+    # NOT using --autounmask-continue at all.
+    if not ok and "Autounmask changes successfully written" in result.stdout:
+        print("[info] autounmask changes were written but the run still failed — "
+              "retrying once with a fresh emerge invocation")
+        retried = True
+        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        ok = result.returncode == 0
 
     if ok:
-        print("[ok] combined build succeeded")
+        print(f"[ok] combined build succeeded{' (after retry)' if retried else ''}")
     else:
-        print(f"[fail] combined build failed\n{result.stderr[-20000:]}", file=sys.stderr)
+        print(f"[fail] combined build failed{' (even after retry)' if retried else ''}\n{result.stderr[-20000:]}", file=sys.stderr)
 
     report = {
         "atoms": [atom for atom, _ in atoms],
         "ok": ok,
+        "retried": retried,
         "log_tail": "" if ok else (result.stdout[-20000:] + "\n" + result.stderr[-20000:]),
     }
     report_path = pkgdir / "build-report.json"
