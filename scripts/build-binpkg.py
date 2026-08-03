@@ -147,7 +147,13 @@ def main():
     # reading the config that was just written to disk, which is exactly
     # the standard manual workaround Gentoo users already reach for when
     # NOT using --autounmask-continue at all.
-    if not ok and "Autounmask changes successfully written" in result.stdout:
+    # CORRECTED AGAIN: the check below only looked at result.stdout, but
+    # Portage prints "Autounmask changes successfully written." to STDERR
+    # (it's an EOutput warning-class message, not an info-class one) —
+    # confirmed by two real runs (kde-qt, xlibre) both showing this exact
+    # text at the end of their captured log_tail while "retried" stayed
+    # false, meaning the retry never actually fired. Checking both streams.
+    if not ok and "Autounmask changes successfully written" in (result.stdout + result.stderr):
         print("[info] autounmask changes were written but the run still failed — "
               "retrying once with a fresh emerge invocation")
         retried = True
