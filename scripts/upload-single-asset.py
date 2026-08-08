@@ -8,6 +8,10 @@ overwrite an asset in place). Used for things that aren't package blobs —
 Packages-index fragments, ccache tarballs — where we want a stable,
 overwritable name rather than the natural filename.
 
+Uploads now retry a few times with backoff on transient network errors
+(large ccache tarballs can hit the same dropped-connection issue package
+uploads did — see upload-release.py for where this was first found).
+
 Usage:
     python3 upload-single-asset.py FILE_PATH TAG ASSET_NAME
 """
@@ -15,11 +19,13 @@ import json
 import mimetypes
 import os
 import sys
+import time
 import urllib.request
 import urllib.error
 from pathlib import Path
 
 API = "https://api.github.com"
+MAX_UPLOAD_ATTEMPTS = 4
 
 
 def api_request(method, url, token, data=None, content_type="application/json"):
@@ -62,6 +68,20 @@ def upload_asset(release, file_path: Path, asset_name: str, token):
     return api_request("POST", url, token, data=data, content_type=mime)
 
 
+def upload_asset_with_retry(release, file_path: Path, asset_name: str, token):
+    for attempt in range(1, MAX_UPLOAD_ATTEMPTS + 1):
+        try:
+            return upload_asset(release, file_path, asset_name, token)
+        except urllib.error.HTTPError:
+            raise  # a real HTTP response — not a network drop, don't retry here
+        except (urllib.error.URLError, ConnectionError, OSError) as e:
+            if attempt == MAX_UPLOAD_ATTEMPTS:
+                raise
+            wait = 2 ** attempt
+            print(f"[retry] {asset_name} upload failed ({e}), attempt {attempt}/{MAX_UPLOAD_ATTEMPTS}, retrying in {wait}s")
+            time.sleep(wait)
+
+
 def main():
     if len(sys.argv) != 4:
         print(f"usage: {sys.argv[0]} FILE_PATH TAG ASSET_NAME", file=sys.stderr)
@@ -81,7 +101,7 @@ def main():
     delete_existing_asset(release, asset_name, repo, token)
     # re-fetch so the assets list (and upload_url) reflect the deletion
     release = api_request("GET", f"{API}/repos/{repo}/releases/tags/{tag}", token)
-    asset = upload_asset(release, file_path, asset_name, token)
+    asset = upload_asset_with_retry(release, file_path, asset_name, token)
     print(f"[ok] uploaded {asset_name} -> {asset['browser_download_url']}")
 
 

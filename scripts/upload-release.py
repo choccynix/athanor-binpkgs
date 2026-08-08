@@ -26,6 +26,13 @@ Instead, a 422 already_exists is now treated as success — if another
 parallel job already uploaded this exact package, we don't need to re-
 upload it, just look up and reuse its existing download URL.
 
+CORRECTED AGAIN from an earlier revision: uploads of large packages (e.g.
+mesa's .gpkg.tar, several hundred MB) could fail mid-transfer with a bare
+BrokenPipeError/URLError and no retry — a single dropped connection on a
+big upload killed the whole job with no recovery. Uploads now retry a few
+times with backoff on network-level errors specifically (HTTPError/422
+already-exists is still handled separately, unaffected by this).
+
 Usage:
     python3 upload-release.py PKGDIR binpkgs-rolling-20260726 upload-map.json
 """
@@ -33,11 +40,13 @@ import json
 import mimetypes
 import os
 import sys
+import time
 import urllib.request
 import urllib.error
 from pathlib import Path
 
 API = "https://api.github.com"
+MAX_UPLOAD_ATTEMPTS = 4
 
 
 def api_request(method: str, url: str, token: str, data: bytes | None = None, content_type: str = "application/json"):
@@ -83,6 +92,20 @@ def upload_asset(release: dict, file_path: Path, token: str) -> dict:
     return api_request("POST", url, token, data=data, content_type=mime)
 
 
+def upload_asset_with_retry(release: dict, file_path: Path, token: str) -> dict:
+    for attempt in range(1, MAX_UPLOAD_ATTEMPTS + 1):
+        try:
+            return upload_asset(release, file_path, token)
+        except urllib.error.HTTPError:
+            raise  # a real HTTP response (e.g. 422) — not a network drop, don't retry here
+        except (urllib.error.URLError, ConnectionError, OSError) as e:
+            if attempt == MAX_UPLOAD_ATTEMPTS:
+                raise
+            wait = 2 ** attempt
+            print(f"[retry] {file_path.name} upload failed ({e}), attempt {attempt}/{MAX_UPLOAD_ATTEMPTS}, retrying in {wait}s")
+            time.sleep(wait)
+
+
 def main():
     if len(sys.argv) != 4:
         print(f"usage: {sys.argv[0]} PKGDIR TAG OUTPUT_MAP_JSON", file=sys.stderr)
@@ -109,7 +132,7 @@ def main():
         rel = str(f.relative_to(pkgdir))
         print(f"[upload] {rel}")
         try:
-            asset = upload_asset(release, f, token)
+            asset = upload_asset_with_retry(release, f, token)
             upload_map[rel] = asset["browser_download_url"]
         except urllib.error.HTTPError as e:
             body = e.read().decode(errors="replace")
