@@ -26,25 +26,23 @@
 #     driver packaging isn't fully xlibre-aware yet), causing exactly the
 #     file collision described above. build-packages.yml now masks the
 #     ::gentoo copy specifically for this group to prevent that.
-#   - CONFIRMED via a real run: sys-auth/elogind itself fails to compile
-#     (a genuine ninja/meson build failure, not a masking/USE issue).
-#     XLibre needed elogind because that's what autounmask picked for its
-#     "elogind" USE flag. Worth knowing: XLibre's upstream project does
-#     support seatd as an alternative to elogind (confirmed via
-#     X11Libre/xserver's own docs and issue tracker — matches the seatd
-#     approach already used in packages.graphics.list), which would avoid
-#     needing elogind entirely. Not applying this as a use: override here
-#     since the exact Gentoo ebuild's USE flag name for it isn't confirmed
-#     (a young overlay's IUSE naming may not mirror wlroots' "seat"
-#     convention) — worth checking `emerge -pv x11-base/xlibre-server`
-#     against the real ebuild's IUSE list before guessing a flag name.
+#   - CONFIRMED via a real run (after the collision fix): sys-auth/elogind
+#     itself fails to compile (a genuine ninja/meson build failure). This
+#     is now the sole remaining blocker — everything else in this list
+#     resolved cleanly. XLibre's upstream project does support seatd as an
+#     alternative to elogind, but I couldn't confirm the exact Gentoo
+#     ebuild's USE flag name for it through available search results, and
+#     didn't want to hand over a guessed flag name. Instead, -elogind is
+#     now set explicitly below — Portage's own dependency solver will
+#     report what it actually wants instead on the next run, which is more
+#     reliable than guessing a flag name from outside the ebuild itself.
 #
 # Less proven than packages.xorg.list — a young fork, smaller community,
 # less mileage under musl specifically. Worth treating xorg-server as the
 # default and xlibre-server as the opt-in experiment until it's had more
 # real-world runtime.
 
-x11-base/xlibre-server
+x11-base/xlibre-server          use:-elogind
 x11-base/xlibre-drivers
 
 x11-wm/dwm
