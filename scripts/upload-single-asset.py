@@ -8,9 +8,10 @@ overwrite an asset in place). Used for things that aren't package blobs —
 Packages-index fragments, ccache tarballs — where we want a stable,
 overwritable name rather than the natural filename.
 
-Uploads now retry a few times with backoff on transient network errors
-(large ccache tarballs can hit the same dropped-connection issue package
-uploads did — see upload-release.py for where this was first found).
+Uploads retry with backoff on transient network errors (large ccache
+tarballs, and now even smaller assets on flaky GH-runner networking, have
+both hit dropped-connection issues — see upload-release.py's revision
+history for where this was first found and repeatedly widened).
 
 Usage:
     python3 upload-single-asset.py FILE_PATH TAG ASSET_NAME
@@ -25,7 +26,8 @@ import urllib.error
 from pathlib import Path
 
 API = "https://api.github.com"
-MAX_UPLOAD_ATTEMPTS = 4
+MAX_UPLOAD_ATTEMPTS = 6
+UPLOAD_TIMEOUT_SECONDS = 180
 
 
 def api_request(method, url, token, data=None, content_type="application/json"):
@@ -35,7 +37,7 @@ def api_request(method, url, token, data=None, content_type="application/json"):
     req.add_header("X-GitHub-Api-Version", "2022-11-28")
     if data is not None:
         req.add_header("Content-Type", content_type)
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req, timeout=UPLOAD_TIMEOUT_SECONDS) as resp:
         return json.loads(resp.read().decode()) if resp.length != 0 else {}
 
 
@@ -55,7 +57,7 @@ def delete_existing_asset(release, name, repo, token):
                 method="DELETE",
             )
             req.add_header("Authorization", f"Bearer {token}")
-            urllib.request.urlopen(req)
+            urllib.request.urlopen(req, timeout=UPLOAD_TIMEOUT_SECONDS)
             return
 
 
@@ -74,10 +76,10 @@ def upload_asset_with_retry(release, file_path: Path, asset_name: str, token):
             return upload_asset(release, file_path, asset_name, token)
         except urllib.error.HTTPError:
             raise  # a real HTTP response — not a network drop, don't retry here
-        except (urllib.error.URLError, ConnectionError, OSError) as e:
+        except (urllib.error.URLError, ConnectionError, OSError, TimeoutError) as e:
             if attempt == MAX_UPLOAD_ATTEMPTS:
                 raise
-            wait = 2 ** attempt
+            wait = min(2 ** attempt, 60)
             print(f"[retry] {asset_name} upload failed ({e}), attempt {attempt}/{MAX_UPLOAD_ATTEMPTS}, retrying in {wait}s")
             time.sleep(wait)
 

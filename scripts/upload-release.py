@@ -26,12 +26,22 @@ Instead, a 422 already_exists is now treated as success — if another
 parallel job already uploaded this exact package, we don't need to re-
 upload it, just look up and reuse its existing download URL.
 
-CORRECTED AGAIN from an earlier revision: uploads of large packages (e.g.
-mesa's .gpkg.tar, several hundred MB) could fail mid-transfer with a bare
-BrokenPipeError/URLError and no retry — a single dropped connection on a
-big upload killed the whole job with no recovery. Uploads now retry a few
-times with backoff on network-level errors specifically (HTTPError/422
-already-exists is still handled separately, unaffected by this).
+CORRECTED AGAIN: uploads of large packages (e.g. mesa's .gpkg.tar, several
+hundred MB) could fail mid-transfer with a bare BrokenPipeError/URLError
+and no retry — a single dropped connection on a big upload killed the
+whole job with no recovery. Uploads retry a few times with backoff on
+network-level errors specifically (HTTPError/422 already-exists is still
+handled separately, unaffected by this).
+
+CORRECTED AGAIN: even 3 retries with short backoff wasn't always enough —
+a run failed uploading neovim (not a large file, unlike mesa before),
+confirming this is general GitHub-runner network flakiness rather than
+something specific to big uploads. Attempts raised to 6 with backoff
+capped higher, an explicit socket timeout added so a hang surfaces as a
+retryable error instead of stalling silently, and a small fixed delay
+between every upload (not just retries) added in case rapid-fire uploads
+of many assets in a row are triggering some rate-limit/abuse-detection
+behavior on GitHub's end.
 
 Usage:
     python3 upload-release.py PKGDIR binpkgs-rolling-20260726 upload-map.json
@@ -46,7 +56,9 @@ import urllib.error
 from pathlib import Path
 
 API = "https://api.github.com"
-MAX_UPLOAD_ATTEMPTS = 4
+MAX_UPLOAD_ATTEMPTS = 6
+UPLOAD_TIMEOUT_SECONDS = 180
+DELAY_BETWEEN_UPLOADS_SECONDS = 0.5
 
 
 def api_request(method: str, url: str, token: str, data: bytes | None = None, content_type: str = "application/json"):
@@ -56,7 +68,7 @@ def api_request(method: str, url: str, token: str, data: bytes | None = None, co
     req.add_header("X-GitHub-Api-Version", "2022-11-28")
     if data is not None:
         req.add_header("Content-Type", content_type)
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req, timeout=UPLOAD_TIMEOUT_SECONDS) as resp:
         return json.loads(resp.read().decode())
 
 
@@ -98,10 +110,10 @@ def upload_asset_with_retry(release: dict, file_path: Path, token: str) -> dict:
             return upload_asset(release, file_path, token)
         except urllib.error.HTTPError:
             raise  # a real HTTP response (e.g. 422) — not a network drop, don't retry here
-        except (urllib.error.URLError, ConnectionError, OSError) as e:
+        except (urllib.error.URLError, ConnectionError, OSError, TimeoutError) as e:
             if attempt == MAX_UPLOAD_ATTEMPTS:
                 raise
-            wait = 2 ** attempt
+            wait = min(2 ** attempt, 60)
             print(f"[retry] {file_path.name} upload failed ({e}), attempt {attempt}/{MAX_UPLOAD_ATTEMPTS}, retrying in {wait}s")
             time.sleep(wait)
 
@@ -146,6 +158,7 @@ def main():
             else:
                 print(f"[error] upload failed for {rel}: {e.code}\n{body}", file=sys.stderr)
                 raise
+        time.sleep(DELAY_BETWEEN_UPLOADS_SECONDS)
 
     out_map_path.write_text(json.dumps(upload_map, indent=2))
     print(f"[info] wrote {len(upload_map)} entries to {out_map_path}")
