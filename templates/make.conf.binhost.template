@@ -2,14 +2,22 @@
 # AthanorOS packages instead of compiling everything from source.
 #
 # Replace ORG and REPO if you're pointing at a fork or a different index.
+#
+# CORRECTED: this used to point at a gh-pages URL that was never actually
+# served (GitHub Pages was never enabled for this repo). Publishing is
+# Releases-only now — GitHub's stable /releases/latest/download/{asset}
+# alias always resolves to the newest non-prerelease release automatically,
+# which the rolling binpkgs-rolling-YYYYMMDD releases always are, so this
+# URL never needs updating as new releases publish.
 
 FEATURES="${FEATURES} getbinpkg"
 
-# Points at the gh-pages branch of athanor-binpkgs, which serves a live
-# Packages index. Individual package blobs are fetched from wherever the
-# index's per-entry URI points (GitHub Release assets) — this URL only
-# needs to serve the index itself.
-PORTAGE_BINHOST="https://ORG.github.io/REPO"
+# Points at the "latest" release's Packages asset — this URL doesn't
+# change day to day, GitHub resolves it to whatever the newest
+# binpkgs-rolling-* release is. Individual package blobs are fetched from
+# wherever the index's per-entry URI points (also Release assets, per
+# group/day) — this URL only needs to serve the index itself.
+PORTAGE_BINHOST="https://github.com/ORG/REPO/releases/latest/download"
 
 # Prefer binary packages when a matching build exists, fall back to source
 # otherwise. Drop "y" -> "n" if you want binpkgs to be opt-in per package

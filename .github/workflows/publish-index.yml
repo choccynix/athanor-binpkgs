@@ -1,10 +1,15 @@
 # ◈ publish-index.yml
 #
-# Manual escape hatch: re-sign and re-publish the existing gh-pages Packages
-# index without rebuilding every package — useful if a signing key rotates,
-# or the index needs a manual correction. Runs on plain ubuntu-latest (no
-# musl container needed, since it's only touching text + gpg), so
-# actions/checkout is fine here.
+# Manual escape hatch: re-sign and re-publish the currently-live Packages
+# index without rebuilding every package — useful if a signing key
+# rotates, or the index needs a manual correction. Runs on plain
+# ubuntu-latest (no musl container needed, since it's only touching
+# text + gpg), so actions/checkout and the `gh` CLI are both fine here.
+#
+# CORRECTED: this used to fetch/re-push a gh-pages branch that was never
+# actually served (GitHub Pages was never enabled for it). Now works
+# entirely through Releases, matching how build-packages.yml publishes —
+# finds the current rolling release, re-signs its Packages asset in place.
 
 name: Re-publish Packages index
 
@@ -19,27 +24,37 @@ on:
 jobs:
   resign-and-publish:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch current gh-pages Packages
+      - name: Determine current rolling release tag
+        id: tag
         run: |
-          git clone --depth 1 --branch gh-pages \
-            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
-            gh-pages
+          tag=$(gh release list --limit 10 --json tagName,isPrerelease \
+            --jq '[.[] | select(.isPrerelease == false)][0].tagName')
+          if [ -z "$tag" ]; then
+            echo "[error] no non-prerelease rolling release found" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch the currently published Packages index
+        run: gh release download "${{ steps.tag.outputs.tag }}" --pattern "Packages" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Re-sign
-        env:
-          GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: |
-          python3 scripts/sign-packages.py gh-pages/Packages gh-pages/Packages.sig
+        run: python3 scripts/sign-packages.py Packages Packages.sig
 
-      - name: Push
+      - name: Re-upload
         run: |
-          cd gh-pages
-          git config user.name "athanor-ci"
-          git config user.email "ci@athanoros.invalid"
-          git add Packages.sig
-          git commit -m "Re-sign Packages index (${{ github.event.inputs.reason }})" || echo "nothing to commit"
-          git push origin gh-pages
+          python3 scripts/upload-single-asset.py Packages "${{ steps.tag.outputs.tag }}" Packages
+          python3 scripts/upload-single-asset.py Packages.sig "${{ steps.tag.outputs.tag }}" Packages.sig
+          echo "Re-signed ${{ steps.tag.outputs.tag }} (${{ github.event.inputs.reason }})"

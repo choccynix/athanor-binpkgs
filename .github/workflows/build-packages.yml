@@ -13,15 +13,29 @@
 # (file collisions), and why both still get built and published anyway
 # (the choice of which to install is left to whoever consumes the binhost).
 #
-# `git` is NOT present in gentoo/stage3:musl-llvm, so source is fetched as a
-# tarball via the GitHub API (urllib) instead of `git clone` — same root
-# cause as the Node/musl incompatibility already solved for the ISO
-# pipeline: don't assume tooling beyond what the container actually ships.
+# NOTE ON TOOLING: every step below is a shell command or a stdlib-only
+# python script. No actions/checkout, no actions/upload-artifact, no other
+# JS-based Actions are used inside the musl container — the runner mounts
+# Node into the container to execute those, and Node's prebuilt binary
+# requires glibc, which this container doesn't have. `git` itself also
+# isn't present in this container, so source is fetched as a tarball via
+# the GitHub API instead of `git clone`.
+#
+# CORRECTED: the merged Packages index used to be pushed to a gh-pages
+# branch, on the assumption GitHub Pages would be enabled to serve it.
+# It never was, so that URL never actually resolved — everything usable
+# so far has come through Releases anyway. Publishing now goes entirely
+# through Releases instead: the merge job uploads the final signed index
+# as assets literally named "Packages" and "Packages.sig" on the day's own
+# rolling release. Since rolling tags are created with prerelease=false,
+# GitHub's stable /releases/latest/download/{asset} URL always resolves to
+# the newest one automatically — no Pages, no per-day URL tracking needed
+# on the consuming end.
 #
 # A final non-container job merges each group's Packages-index fragment,
-# signs the result, and publishes to gh-pages. That job runs on plain
-# ubuntu-latest (no musl container), so actions/checkout and git are fine
-# there — the container-only restrictions don't apply to it.
+# signs the result, and publishes it. That job runs on plain ubuntu-latest
+# (no musl container), so actions/checkout and git are fine there — the
+# container-only restrictions don't apply to it.
 
 name: Build binary packages
 
@@ -83,35 +97,15 @@ jobs:
       - name: Add XLibre overlay (xlibre group only)
         if: matrix.group == 'xlibre'
         run: |
-          # XLibre is not in the main Gentoo tree — checked, confirmed via
-          # the Gentoo wiki and the overlay's own repo. Fetched as a tarball
-          # (git isn't present in this container, same as the repo fetch
-          # step above) rather than assuming it's registered for
-          # `eselect repository enable`.
           python3 -c "import urllib.request as u; open('/tmp/xlibre.tar.gz','wb').write(u.urlopen('https://api.github.com/repos/X11Libre/ports-gentoo/tarball').read())"
           mkdir -p /var/db/repos/xlibre
           tar -xzf /tmp/xlibre.tar.gz -C /var/db/repos/xlibre --strip-components=1
           mkdir -p /etc/portage/repos.conf
           printf '[xlibre]\nlocation = /var/db/repos/xlibre\n' > /etc/portage/repos.conf/xlibre.conf
 
-          # Best-effort: the overlay's own driver meta-package still
-          # depends on packages deeper in its tree that our initial
-          # 2-atom keyword list didn't cover (e.g. x11-drivers/xf86-input-
-          # libinput::xlibre came back masked by ~amd64/missing keyword on
-          # a real run) — widening to the whole ::xlibre repo rather than
-          # chasing each transitive atom individually.
           mkdir -p /etc/portage/package.accept_keywords
           echo "*/* ~amd64" > /etc/portage/package.accept_keywords/xlibre-overlay
 
-          # Confirmed on a real run: x11-base/xlibre-drivers' own
-          # dependency chain still pulls in mainline x11-base/xorg-server
-          # (the overlay's own dependency graph isn't fully xlibre-aware
-          # yet — a real immaturity gap in a young overlay, not a mistake
-          # in this list), causing exactly the file collision XLibre's docs
-          # warn about. Masking the ::gentoo copy specifically (not
-          # ::xlibre's own package of the same name) for this group only,
-          # so resolution is forced toward whatever the overlay actually
-          # intends instead of colliding with it.
           mkdir -p /etc/portage/package.mask
           echo "x11-base/xorg-server::gentoo" > /etc/portage/package.mask/xlibre-overlay
 
@@ -124,10 +118,6 @@ jobs:
       - name: Best-effort testing-keyword acceptance (kde-qt group only)
         if: matrix.group == 'kde-qt'
         run: |
-          # gentoo/musl/llvm is an experimental profile — several of these
-          # atoms may only exist keyworded ~amd64 (testing), not stable amd64.
-          # Scoped to this group's atoms only, not a blanket ACCEPT_KEYWORDS
-          # bump, since that risks destabilizing unrelated packages.
           mkdir -p /etc/portage/package.accept_keywords
           {
             echo "dev-qt/qtbase ~amd64"
@@ -233,19 +223,7 @@ jobs:
       - name: Sign merged index
         run: python3 scripts/sign-packages.py Packages.final Packages.sig
 
-      - name: Publish to gh-pages
+      - name: Publish index to this rolling release
         run: |
-          git config --global user.name "athanor-ci"
-          git config --global user.email "ci@athanoros.invalid"
-          git clone --depth 1 --branch gh-pages \
-            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-            gh-pages || {
-              mkdir gh-pages && cd gh-pages && git init && \
-              git checkout -b gh-pages && cd ..
-            }
-          cp Packages.final gh-pages/Packages
-          cp Packages.sig gh-pages/Packages.sig
-          cd gh-pages
-          git add Packages Packages.sig
-          git commit -m "Update Packages index (${{ steps.tag.outputs.tag }})" || echo "nothing to commit"
-          git push origin gh-pages
+          python3 scripts/upload-single-asset.py Packages.final "${{ steps.tag.outputs.tag }}" Packages
+          python3 scripts/upload-single-asset.py Packages.sig "${{ steps.tag.outputs.tag }}" Packages.sig
