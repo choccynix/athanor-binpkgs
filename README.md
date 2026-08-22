@@ -1,3 +1,6 @@
+THIS REPO IS MOVING TO - https://github.com/choccynix/choccynix.github.io
+
+
 # athanor-binpkgs
 
 ◈ Prebuilt binary packages for **AthanorOS** — a musl+llvm+openrc Gentoo derivative.
