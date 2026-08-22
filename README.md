@@ -98,3 +98,5 @@ the PR whether it compiled cleanly under musl+llvm.
 Same three as AthanorOS proper: **Divergence, Minimalism, Transmutation.**
 This repo exists so `Transmutation` — turning source into something usable —
 doesn't have to happen on every single machine, every single time.
+
+# this is only to test i will remove this later
