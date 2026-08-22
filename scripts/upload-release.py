@@ -21,17 +21,14 @@ identically by both xorg and xlibre; messagebus/polkitd account packages
 pulled in by several groups; lvm2 in both core and kde-qt) can race: two
 jobs both check "does this exist yet", both see no, and one of them's
 upload gets a 422 "already_exists" a moment later when the other's finishes
-first. Deleting first doesn't fix a race, it just moves it earlier.
-Instead, a 422 already_exists is now treated as success — if another
-parallel job already uploaded this exact package, we don't need to re-
-upload it, just look up and reuse its existing download URL.
+first. Instead, a 422 already_exists is now treated as success — if
+another parallel job already uploaded this exact package, we don't need to
+re-upload it, just look up and reuse its existing download URL.
 
 CORRECTED AGAIN: uploads of large packages (e.g. mesa's .gpkg.tar, several
 hundred MB) could fail mid-transfer with a bare BrokenPipeError/URLError
-and no retry — a single dropped connection on a big upload killed the
-whole job with no recovery. Uploads retry a few times with backoff on
-network-level errors specifically (HTTPError/422 already-exists is still
-handled separately, unaffected by this).
+and no retry. Uploads retry with backoff on network-level errors
+specifically (HTTPError/422 already-exists is still handled separately).
 
 CORRECTED AGAIN: even 3 retries with short backoff wasn't always enough —
 a run failed uploading neovim (not a large file, unlike mesa before),

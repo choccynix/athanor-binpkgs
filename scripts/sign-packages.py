@@ -3,13 +3,10 @@
 ◈ sign-packages.py
 
 Detached-signs the published Packages index with GPG so consumers can verify
-it hasn't been tampered with in transit (relevant here since the index will
-be served over GitHub Pages / raw.githubusercontent.com rather than
-Gentoo's own signed infrastructure).
+it hasn't been tampered with in transit.
 
 Shells out to `gpg` directly rather than pulling in a Python GPG binding —
-keeps this stdlib-only like the rest of the toolchain, and matches whatever
-gpg version is already installed in the CI container.
+keeps this stdlib-only like the rest of the toolchain.
 
 Requires:
     - a GPG secret key imported into the CI runner's keyring

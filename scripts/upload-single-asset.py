@@ -5,13 +5,14 @@
 Uploads one file to a release under an explicit asset name, deleting any
 existing asset with that name first (GitHub Releases won't let you
 overwrite an asset in place). Used for things that aren't package blobs —
-Packages-index fragments, ccache tarballs — where we want a stable,
-overwritable name rather than the natural filename.
+Packages-index fragments, ccache tarballs, the final merged Packages index
+itself — where we want a stable, overwritable name rather than the
+natural filename.
 
 Uploads retry with backoff on transient network errors (large ccache
-tarballs, and now even smaller assets on flaky GH-runner networking, have
-both hit dropped-connection issues — see upload-release.py's revision
-history for where this was first found and repeatedly widened).
+tarballs, and even smaller assets on flaky GH-runner networking, have
+both hit dropped-connection issues — see upload-release.py for the same
+issue first found there).
 
 Usage:
     python3 upload-single-asset.py FILE_PATH TAG ASSET_NAME

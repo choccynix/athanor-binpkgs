@@ -21,9 +21,11 @@
 # transitively. qtsvg, qtdeclarative, qtwayland, qttranslations stayed as
 # separate atoms since those already built successfully standalone.
 #
-# If none of this ends up used for anything else either, it's a clean
-# one-line removal per package the same way calamares was removed below —
-# no need to keep dependencies around "just in case" once nothing needs them.
+# OPEN ITEM: Calamares + KPMcore may not live in the main Gentoo tree in
+# every version — check whether your Catalyst portage confdir already has
+# an overlay enabled (e.g. GURU) before this builds, IF Calamares itself
+# ever gets re-added here. Not applicable to the current, Calamares-free
+# contents of this list.
 
 dev-qt/qtbase                     use:gui,widgets,network,dbus
 dev-qt/qtsvg
@@ -50,6 +52,8 @@ sys-fs/e2fsprogs
 sys-fs/dosfstools
 sys-fs/ntfs3g
 
+# Corrected from an earlier revision: polkit lives under sys-auth, not
+# app-crypt; yaml-cpp lives under dev-cpp, not dev-libs.
 sys-auth/polkit
 dev-cpp/yaml-cpp
 dev-libs/boost

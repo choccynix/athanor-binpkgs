@@ -1,7 +1,7 @@
 # ◈ packages.graphics.list — graphics / display stack
 #
-# ASSUMPTION (flag if wrong): Wayland-minimal, not Xorg. Rationale — AthanorOS
-# is already non-systemd/musl/llvm and minimalism-first.
+# ASSUMPTION (flag if wrong): Wayland-minimal, not Xorg. Rationale —
+# AthanorOS is already non-systemd/musl/llvm and minimalism-first.
 #
 # CORRECTED from an earlier revision: dropped gui-apps/cage — it's not in
 # the main Gentoo tree (Gentoo's own Wayland software list confirms several
@@ -19,10 +19,11 @@
 # (VT switching, device access) without pulling in either systemd or the
 # elogind compatibility shim — matches the existing OpenRC-only design.
 #
-# If you'd rather target Xorg instead (more battle-tested with older
-# Calamares/KPMcore releases, heavier stack): swap this file's wayland/wlroots
-# entries for xorg-server + xf86-input-libinput + a minimal WM, and drop
-# qtwayland from packages.kde-qt.list.
+# If you'd rather target Xorg instead of Wayland for THIS stack (separate
+# from the standalone packages.xorg.list/packages.xlibre.list groups,
+# which already cover that): swap this file's wayland/wlroots entries for
+# xorg-server + xf86-input-libinput + a minimal WM, and drop qtwayland
+# from packages.kde-qt.list.
 
 media-libs/mesa                   use:llvm,wayland,vulkan,-X
 x11-libs/libdrm

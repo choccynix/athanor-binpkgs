@@ -1,4 +1,4 @@
-# ◈ packages.desktop.list — usable live-environment desktop (minus firefox)
+# ◈ packages.desktop.list — usable live-environment desktop (minus browser)
 #
 # CORRECTED from an earlier revision: firefox moved out to its own
 # packages.firefox.list / matrix group (since replaced with WebKitGTK/surf

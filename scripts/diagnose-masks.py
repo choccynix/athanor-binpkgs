@@ -46,7 +46,6 @@ def main():
             print(f"[diagnose] OK   {atom}")
             continue
         print(f"[diagnose] FAIL {atom}")
-        # print only the reason-bearing lines, not the whole noisy output
         for line in result.stdout.splitlines() + result.stderr.splitlines():
             if any(kw in line for kw in ("mask", "REQUIRED_USE", "keyword", "satisfy", "unsatisfied")):
                 print(f"    {line.strip()}")

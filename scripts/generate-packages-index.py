@@ -20,7 +20,6 @@ Input:
 
 Output:
     Packages                         - rewritten index, ready to publish
-                                        (e.g. to a gh-pages branch)
 
 Usage:
     python3 generate-packages-index.py PKGDIR/Packages upload-map.json Packages

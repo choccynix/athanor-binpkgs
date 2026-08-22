@@ -1,0 +1,21 @@
+# ◈ /etc/portage/binrepos.conf/athanor.conf
+#
+# CORRECTED: now points at choccynix.github.io (a <username>.github.io
+# repo — GitHub serves Pages from it automatically, no settings toggle
+# needed) instead of the /releases/latest/download/ alias. The actual
+# .gpkg.tar package blobs still live on this repo's GitHub Releases —
+# choccynix.github.io just hosts an auto-updated mirror of the lightweight
+# Packages index itself, giving a cleaner, more conventional-looking
+# binhost URL.
+
+[athanor]
+priority = 9999
+sync-uri = https://choccynix.github.io
+
+# Portage >=3.0.74 defaults verify-signature to true, expecting its own
+# gemato-based signature scheme (the same one emerge-webrsync uses for
+# tree snapshots). This repo signs its Packages index with a plain
+# detached GPG .sig file instead (see docs/package-signing.md) — a
+# different, independent mechanism. Leaving Portage's own
+# verify-signature on would very likely just fail against this binhost.
+verify-signature = false

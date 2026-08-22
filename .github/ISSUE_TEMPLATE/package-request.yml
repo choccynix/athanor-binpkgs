@@ -16,7 +16,7 @@ body:
     id: use
     attributes:
       label: Desired USE flags (optional)
-      description: "Comma separated, matching packages.list syntax, e.g. lua,-python"
+      description: "Comma separated, matching packages*.list syntax, e.g. lua,-python"
       placeholder: flag1,-flag2
 
   - type: textarea
@@ -32,7 +32,7 @@ body:
     attributes:
       label: Before submitting
       options:
-        - label: I checked packages.list and this isn't already included
+        - label: I checked packages*.list and this isn't already included
           required: true
         - label: I confirmed this package builds under musl+llvm (or I'm unsure and want CI to find out)
           required: false

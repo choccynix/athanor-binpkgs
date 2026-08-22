@@ -2,10 +2,11 @@
 """
 ◈ merge-packages-index.py
 
-Each matrix group (core / graphics / desktop / firefox / kde-qt) produces its own complete
-Packages-format file via generate-packages-index.py. This just concatenates
-their stanzas under a single shared header, so the published binhost index
-looks like one coherent set to Portage rather than three.
+Each matrix group (core / graphics / desktop / browser / kde-qt / xorg /
+xlibre) produces its own complete Packages-format file via
+generate-packages-index.py. This just concatenates their stanzas under a
+single shared header, so the published binhost index looks like one
+coherent set to Portage rather than seven.
 
 Usage:
     python3 merge-packages-index.py OUTPUT fragment1 [fragment2 ...]

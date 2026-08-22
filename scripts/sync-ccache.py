@@ -4,9 +4,9 @@
 
 Persists a per-group ccache directory as a release asset on a fixed tag
 (`build-cache`, never the dated rolling tags), so weekly rebuilds only
-recompile what actually changed instead of starting cold every time — this
-matters a lot for the graphics/firefox/kde-qt groups, which are the whole reason
-"long compile" is a concern here.
+recompile what actually changed instead of starting cold every time —
+this matters a lot for the graphics/browser/kde-qt groups, which are the
+whole reason "long compile" is a concern here.
 
 Uses the same asset-replace mechanism as upload-single-asset.py under the
 hood (a cache miss on first run is expected and not an error).
@@ -17,7 +17,6 @@ Usage:
 """
 import subprocess
 import sys
-import tarfile
 import urllib.error
 import urllib.request
 import os
@@ -43,7 +42,7 @@ def find_asset_url(repo: str, token: str, name: str) -> str | None:
         return None
     for asset in release.get("assets", []):
         if asset["name"] == name:
-            return asset["url"]  # API url, needed for the octet-stream Accept header below
+            return asset["url"]
     return None
 
 

@@ -13,29 +13,33 @@
 # (file collisions), and why both still get built and published anyway
 # (the choice of which to install is left to whoever consumes the binhost).
 #
-# NOTE ON TOOLING: every step below is a shell command or a stdlib-only
-# python script. No actions/checkout, no actions/upload-artifact, no other
-# JS-based Actions are used inside the musl container — the runner mounts
-# Node into the container to execute those, and Node's prebuilt binary
-# requires glibc, which this container doesn't have. `git` itself also
-# isn't present in this container, so source is fetched as a tarball via
-# the GitHub API instead of `git clone`.
+# NOTE ON TOOLING: every step in the `build` job below is a shell command
+# or a stdlib-only python script. No actions/checkout, no
+# actions/upload-artifact, no other JS-based Actions are used inside the
+# musl container — the runner mounts Node into the container to execute
+# those, and Node's prebuilt binary requires glibc, which this container
+# doesn't have. `git` itself also isn't present in this container, so
+# source is fetched as a tarball via the GitHub API instead of
+# `git clone`. The `merge-and-publish` job runs on plain ubuntu-latest
+# (no musl container), so actions/checkout and git are fine there.
 #
 # CORRECTED: the merged Packages index used to be pushed to a gh-pages
-# branch, on the assumption GitHub Pages would be enabled to serve it.
-# It never was, so that URL never actually resolved — everything usable
-# so far has come through Releases anyway. Publishing now goes entirely
-# through Releases instead: the merge job uploads the final signed index
-# as assets literally named "Packages" and "Packages.sig" on the day's own
-# rolling release. Since rolling tags are created with prerelease=false,
-# GitHub's stable /releases/latest/download/{asset} URL always resolves to
-# the newest one automatically — no Pages, no per-day URL tracking needed
-# on the consuming end.
+# branch that was never actually served (GitHub Pages was never enabled
+# for it). Then switched to Releases-only via /releases/latest/download/.
 #
-# A final non-container job merges each group's Packages-index fragment,
-# signs the result, and publishes it. That job runs on plain ubuntu-latest
-# (no musl container), so actions/checkout and git are fine there — the
-# container-only restrictions don't apply to it.
+# CORRECTED AGAIN: now ALSO mirrored to choccynix/choccynix.github.io — a
+# <username>.github.io repo, which GitHub serves via Pages automatically
+# from its root with zero settings toggles (unlike a regular repo's
+# gh-pages branch). Releases in THIS repo remain the source of truth for
+# the actual .gpkg.tar blobs and the full per-day history; the Pages repo
+# just gets a live mirror of the current Packages/Packages.sig for a
+# clean, stable consumer-facing URL. Requires a PAGES_REPO_TOKEN secret —
+# GitHub's default GITHUB_TOKEN can only write to the repo a workflow runs
+# in, not a different one. Create a fine-grained PAT (Settings → Developer
+# settings → Personal access tokens → Fine-grained, scoped to just
+# choccynix.github.io, Contents: Read and write) and add it as a repo
+# secret here named PAGES_REPO_TOKEN. The mirror step is skipped
+# gracefully (not a hard failure) if that secret isn't set.
 
 name: Build binary packages
 
@@ -196,6 +200,7 @@ jobs:
       GITHUB_REPOSITORY: ${{ github.repository }}
       GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
       GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      PAGES_REPO_TOKEN: ${{ secrets.PAGES_REPO_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -227,3 +232,24 @@ jobs:
         run: |
           python3 scripts/upload-single-asset.py Packages.final "${{ steps.tag.outputs.tag }}" Packages
           python3 scripts/upload-single-asset.py Packages.sig "${{ steps.tag.outputs.tag }}" Packages.sig
+
+      - name: Mirror index to choccynix.github.io (GitHub Pages)
+        if: env.PAGES_REPO_TOKEN != ''
+        run: |
+          git config --global user.name "athanor-ci"
+          git config --global user.email "ci@athanoros.invalid"
+          git clone --depth 1 \
+            "https://x-access-token:${PAGES_REPO_TOKEN}@github.com/choccynix/choccynix.github.io.git" \
+            pages-repo
+          cp Packages.final pages-repo/Packages
+          cp Packages.sig pages-repo/Packages.sig
+          [ -f athanor-binpkgs.pub.asc ] && cp athanor-binpkgs.pub.asc pages-repo/athanor-binpkgs.pub.asc
+          cd pages-repo
+          git add Packages Packages.sig
+          git add athanor-binpkgs.pub.asc 2>/dev/null || true
+          git commit -m "Update Packages index (${{ steps.tag.outputs.tag }})" || echo "nothing to commit"
+          git push origin main
+
+      - name: Note if Pages mirror was skipped
+        if: env.PAGES_REPO_TOKEN == ''
+        run: echo "[info] PAGES_REPO_TOKEN not set — skipping choccynix.github.io mirror, Releases-only this run"

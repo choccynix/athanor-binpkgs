@@ -2,41 +2,45 @@
 
 ## What you're pointing at
 
-`PORTAGE_BINHOST` is set to GitHub's stable "latest release" URL —
-`https://github.com/ORG/REPO/releases/latest/download` — which always
-resolves to whatever the newest `binpkgs-rolling-YYYYMMDD` release is,
-without you needing to track or update a dated tag yourself. That URL
-serves the `Packages` file — Portage's binhost index format — as a
-release asset. Each package entry in the index carries its own absolute
-`URI` pointing at wherever its actual `.gpkg.tar` blob was uploaded (also
-a Release asset, per group/day), so Portage fetches the index from one
-stable place and the actual packages from wherever they individually live.
+The binhost is configured via `/etc/portage/binrepos.conf/` — the current,
+documented mechanism for remote binary package repositories (it replaces
+the older `PORTAGE_BINHOST` make.conf variable).
 
-CORRECTED: this used to describe a gh-pages URL. That was never actually
-served — GitHub Pages was never enabled for the repo — so if you set this
-up before and it didn't work, that's why. Everything now goes entirely
-through Releases.
+`sync-uri` points at `https://choccynix.github.io` — a `<username>.github.io`
+repo, which GitHub serves via Pages automatically from its root with no
+settings toggle needed (unlike a regular repo's `gh-pages` branch, which
+has to be manually enabled). That repo hosts an auto-updated mirror of the
+`Packages` index, pushed there by this repo's own CI after every build.
+The actual `.gpkg.tar` package blobs still live on **this** repo's GitHub
+Releases — Portage fetches the index from the stable Pages URL and the
+actual packages from wherever their individual entries point.
 
 ## Setup
 
-1. Copy `templates/make.conf.binhost.template` into `/etc/portage/make.conf`
-   (or append its contents if you already have entries there), replacing
-   ORG/REPO with the actual GitHub org/repo.
-2. Copy `templates/package.use.template` to
+1. Create `/etc/portage/binrepos.conf/` (it's a directory) and copy
+   `templates/binrepos.conf.template` into it as e.g. `athanor.conf`.
+   Note the `verify-signature = false` in that template — Portage
+   ≥3.0.74 defaults this to `true` expecting its own gemato-based
+   signature scheme, which isn't what this repo publishes (see step 4
+   below for the actual signature check this repo uses instead).
+2. Add to `/etc/portage/make.conf` — copy
+   `templates/make.conf.binhost.template` in, or append if you already
+   have entries there.
+3. Copy `templates/package.use.template` to
    `/etc/portage/package.use/athanor-binpkgs`, matching flags against
    whatever's currently in upstream `packages*.list`.
-3. If any packages track `~arch` (several in `packages.kde-qt.list` and
+4. If any packages track `~arch` (several in `packages.kde-qt.list` and
    everything in the `xlibre` overlay do), do the same with
    `templates/package.accept_keywords.template`.
-4. Import the signing key if you want the `binpkg-signing` FEATURES check
-   to actually verify anything — it's published as a release asset too:
+5. Import this repo's own signing key if you want the `binpkg-signing`
+   FEATURES check in make.conf to actually verify anything:
 
    ```
-   curl -fsSL https://github.com/ORG/REPO/releases/latest/download/athanor-binpkgs.pub.asc \
+   curl -fsSL https://choccynix.github.io/athanor-binpkgs.pub.asc \
      -o /etc/portage/gpg/athanor-binpkgs.pub.asc
    ```
 
-5. Sync and try installing something known to be in one of the
+6. Sync and try installing something known to be in one of the
    `packages*.list` files:
 
    ```
@@ -46,6 +50,13 @@ through Releases.
 
    Portage logs will say `[binary]` next to the package name if it pulled
    the prebuilt version instead of compiling.
+
+## Also want the ebuild overlay?
+
+`choccynix.github.io` is a valid Gentoo ebuild overlay too, separate from
+the binhost concern above (empty for now, but structured correctly for
+when it isn't). Copy that repo's own `templates/repos.conf.template` into
+`/etc/portage/repos.conf/` if/when you want it.
 
 ## Xorg vs XLibre
 

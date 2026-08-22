@@ -1,6 +1,3 @@
-THIS REPO IS MOVING TO - https://github.com/choccynix/choccynix.github.io
-
-
 # athanor-binpkgs
 
 ◈ Prebuilt binary packages for **AthanorOS** — a musl+llvm+openrc Gentoo derivative.
@@ -9,16 +6,19 @@ This repo is the *retort* — it holds no binaries itself. It holds the scripts,
 templates, and CI wiring that build packages inside the same
 `gentoo/stage3:musl-llvm` container used for the ISO, then publish them as
 GitHub Release assets. A `Packages` index (Portage's binhost metadata format)
-is regenerated on every publish and served via GitHub Pages, so end users
-point `PORTAGE_BINHOST` at one stable URL while the actual `.gpkg.tar` blobs
-live wherever Releases puts them.
+is regenerated on every publish and mirrored to
+[choccynix.github.io](https://github.com/choccynix/choccynix.github.io) —
+a `<username>.github.io` repo, which GitHub serves via Pages automatically
+with no settings toggle needed — so end users point Portage's
+`binrepos.conf` at one stable URL while the actual `.gpkg.tar` blobs live
+on this repo's Releases.
 
 ## Why not just commit binaries to git?
 
 Git repos degrade badly once binary blobs accumulate — every clone re-downloads
 the full history, and there's no garbage collection for old package versions.
-GitHub Releases already solves this for the AthanorOS ISOs; this repo reuses
-that exact mechanism instead of reinventing it.
+GitHub Releases already solves this; this repo uses that mechanism instead
+of reinventing it.
 
 ## Layout
 
@@ -33,16 +33,19 @@ athanor-binpkgs/
 ├── packages.xlibre.list        XLibre fork alternative to xorg.list (needs overlay, see file header)
 ├── .github/workflows/
 │   ├── build-packages.yml      matrix build across all seven lists, then merges
-│   │                           + signs + publishes one combined Packages index
+│   │                           + signs + publishes the combined Packages index
 │   └── publish-index.yml       manual re-sign/re-publish without a full rebuild
+├── .github/ISSUE_TEMPLATE/
+│   └── package-request.yml     issue template for requesting new packages
 ├── scripts/
 │   ├── build-binpkg.py         one combined `emerge --buildpkg` per list (CI + local use)
 │   ├── generate-packages-index.py  builds the Portage-compatible Packages file
 │   ├── merge-packages-index.py     combines each group's fragment into one index
+│   ├── diagnose-masks.py       reports Portage's real masking reason per atom, non-fatal
 │   ├── sync-ccache.py          persists a per-group ccache between CI runs
 │   ├── sign-packages.py        GPG-signs the index
 │   ├── upload-release.py       stdlib-only GitHub Releases uploader (package blobs)
-│   └── upload-single-asset.py  uploads/replaces one named asset (fragments, ccache)
+│   └── upload-single-asset.py  uploads/replaces one named asset (fragments, ccache, index)
 ├── templates/                  copy-paste configs for end users and contributors
 └── docs/                       setup guide, contributing guide, signing notes
 ```
@@ -51,17 +54,16 @@ athanor-binpkgs/
 
 GitHub-hosted runners hard-cap every job at 6 hours, no matter the plan. A
 serial build of Mesa + Sway + WebKitGTK + Qt5 + KDE Frameworks + KPMcore +
-Xorg + XLibre could easily exceed that (Firefox, previously in this slot,
-hit the ceiling on its own — replaced with WebKitGTK/surf after LLVM
+Xorg + XLibre could easily exceed that (Firefox, previously in the browser
+slot, hit the ceiling on its own — replaced with WebKitGTK/surf after LLVM
 itself turned out to fail compiling for it, a genuine toolchain bug).
 `build-packages.yml` builds `core`, `graphics`, `desktop`, `browser`,
-`kde-qt`, `xorg`, and `xlibre` as seven parallel matrix jobs, each with
-its own ccache (persisted as a release asset on a fixed `build-cache`
-tag), so the first run is slow but every rebuild after that only
-recompiles what changed — and a slow group like `browser` can't hold
-up or get cancelled alongside fast ones like `desktop`. A final job merges
-all seven groups' index fragments into one combined `Packages` file
-before publishing.
+`kde-qt`, `xorg`, and `xlibre` as seven parallel matrix jobs, each with its
+own ccache (persisted as a release asset on a fixed `build-cache` tag), so
+the first run is slow but every rebuild after that only recompiles what
+changed. A final job merges all seven groups' index fragments into one
+combined `Packages` file, signs it, publishes it to that day's Release, and
+mirrors it to choccynix.github.io.
 
 `xorg` and `xlibre` are **alternatives to each other, not additions** —
 XLibre (a 2025 Xorg fork) file-collides with Xorg itself, so only one can
@@ -82,13 +84,14 @@ already having been merged plain elsewhere in the same list.
 ## Quick start (consuming packages)
 
 See `docs/binhost-setup.md`. Short version: copy
+`templates/binrepos.conf.template` into `/etc/portage/binrepos.conf/`, and
 `templates/make.conf.binhost.template` into `/etc/portage/make.conf`.
 
 ## Quick start (contributing a package)
 
-See `docs/contributing-packages.md`. Short version: add a line to
-`packages.list`, open a PR — CI builds it and reports back on the PR whether
-it compiled cleanly under musl+llvm.
+See `docs/contributing-packages.md`. Short version: add a line to the
+relevant `packages*.list`, open a PR — CI builds it and reports back on
+the PR whether it compiled cleanly under musl+llvm.
 
 ## Pillars
 

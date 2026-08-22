@@ -1,16 +1,11 @@
 # ◈ custom-package-workflow.yml.template
 #
 # Copy this into .github/workflows/ in a fork (or a downstream repo that
-# wants its own curated package set) and fill in the placeholders. It
-# mirrors build-packages.yml exactly but builds from a different list file
-# and publishes to a different release-tag prefix, so it can run
-# side-by-side with the upstream workflow without colliding.
+# wants its own curated package set) and fill in the placeholders.
 #
 # Placeholders to fill in:
 #   __PACKAGES_LIST__   e.g. "packages.desktop.list"
 #   __TAG_PREFIX__      e.g. "desktop-binpkgs"
-#   __GHPAGES_SUBDIR__  optional, if publishing multiple indexes from one
-#                       repo, e.g. "desktop/" (leave blank for repo root)
 
 name: Build __TAG_PREFIX__ packages
 
@@ -54,5 +49,5 @@ jobs:
           python3 scripts/generate-packages-index.py \
             /var/cache/binpkgs/Packages /var/cache/binpkgs/upload-map.json \
             /var/cache/binpkgs/Packages.final
-          # publish step: same gh-pages pattern as build-packages.yml,
-          # writing to __GHPAGES_SUBDIR__/Packages if set
+          python3 scripts/upload-single-asset.py \
+            /var/cache/binpkgs/Packages.final "$TAG" Packages
