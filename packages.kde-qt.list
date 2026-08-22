@@ -27,33 +27,38 @@
 # ever gets re-added here. Not applicable to the current, Calamares-free
 # contents of this list.
 
-dev-qt/qtbase                     use:gui,widgets,network,dbus
-dev-qt/qtsvg
-dev-qt/qtdeclarative
-dev-qt/qtwayland
-dev-qt/qttranslations
+#dev-qt/qtbase                     use:gui,widgets,network,dbus
+#dev-qt/qtsvg
+#dev-qt/qtdeclarative
+#dev-qt/qtwayland
+#dev-qt/qttranslations
 
-kde-frameworks/extra-cmake-modules
-kde-frameworks/kcoreaddons
-kde-frameworks/kconfig
-kde-frameworks/kconfigwidgets
-kde-frameworks/kwidgetsaddons
-kde-frameworks/kiconthemes
-kde-frameworks/ki18n
-kde-frameworks/solid
-kde-frameworks/kservice
-kde-frameworks/kpackage
+#kde-frameworks/extra-cmake-modules
+#kde-frameworks/kcoreaddons
+#kde-frameworks/kconfig
+#kde-frameworks/kconfigwidgets
+#kde-frameworks/kwidgetsaddons
+#kde-frameworks/kiconthemes
+#kde-frameworks/ki18n
+#kde-frameworks/solid
+#kde-frameworks/kservice
+#kde-frameworks/kpackage
 
-sys-libs/kpmcore
-sys-block/parted
-sys-fs/lvm2
-sys-fs/cryptsetup
-sys-fs/e2fsprogs
-sys-fs/dosfstools
-sys-fs/ntfs3g
+#sys-libs/kpmcore
+#sys-block/parted
+#sys-fs/lvm2
+#sys-fs/cryptsetup
+#sys-fs/e2fsprogs
+#sys-fs/dosfstools
+#sys-fs/ntfs3g
 
 # Corrected from an earlier revision: polkit lives under sys-auth, not
 # app-crypt; yaml-cpp lives under dev-cpp, not dev-libs.
-sys-auth/polkit
-dev-cpp/yaml-cpp
-dev-libs/boost
+#sys-auth/polkit
+#dev-cpp/yaml-cpp
+#dev-libs/boost
+#
+
+# QT isnt needed atm and is causing issues. put neofetch in here for temp
+
+app-misc/neofetch
