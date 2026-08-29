@@ -22,7 +22,7 @@ gui-wm/sway
 gui-apps/foot
 
 lxde-base/lxappearance
-x11-misc/pcmanfm
+x11-misc/pcmanfm ~amd64
 media-gfx/sxiv
 x11-misc/picom
 x11-misc/dunst
