@@ -20,3 +20,13 @@
 
 gui-wm/sway
 gui-apps/foot
+
+lxde-base/lxappearance
+x11-misc/pcmanfm
+media-gfx/sxiv
+x11-misc/picom
+x11-misc/dunst
+media-video/mpv
+media-sound/ncmpcpp
+media-sound/mpd
+app-misc/ranger
